@@ -13,7 +13,7 @@ Windows:
 ```sh
 pacman -S 3ds-opusfile
 git clone https://github.com/Unitendo/aurorachat-3ds
-cd aurorachat
+cd aurorachat-3ds
 make
 make cia
 ```
@@ -22,7 +22,7 @@ Arch Linux or other distros with pacman:
 ```sh
 sudo pacman -S 3ds-opusfile
 git clone https://github.com/Unitendo/aurorachat-3ds
-cd aurorachat
+cd aurorachat-3ds
 make
 make cia
 ```
@@ -31,7 +31,7 @@ Other Linux distros without pacman:
 ```sh
 sudo dkp-pacman -S 3ds-opusfile
 git clone https://github.com/Unitendo/aurorachat-3ds
-cd aurorachat
+cd aurorachat-3ds
 make
 make cia
 ```
