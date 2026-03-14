@@ -12,7 +12,7 @@ Install devkitpro with the 3DS development libraries and make, then execute the 
 Windows:
 ```sh
 pacman -S 3ds-opusfile
-git clone https://github.com/mii-man/aurorachat
+git clone https://github.com/Unitendo/aurorachat-3ds
 cd aurorachat
 make
 make cia
@@ -21,7 +21,7 @@ make cia
 Arch Linux or other distros with pacman:
 ```sh
 sudo pacman -S 3ds-opusfile
-git clone https://github.com/mii-man/aurorachat
+git clone https://github.com/Unitendo/aurorachat-3ds
 cd aurorachat
 make
 make cia
@@ -30,7 +30,7 @@ make cia
 Other Linux distros without pacman:
 ```sh
 sudo dkp-pacman -S 3ds-opusfile
-git clone https://github.com/mii-man/aurorachat
+git clone https://github.com/Unitendo/aurorachat-3ds
 cd aurorachat
 make
 make cia
