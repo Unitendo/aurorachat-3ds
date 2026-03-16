@@ -1119,7 +1119,7 @@ int main() {
                 swkbdInputText(&swkbd, msg, sizeof(msg));
 
                 char sender[600];
-                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\"}", msg, username, password, detectsystem);
+                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"platform\":\"%s\"}", msg, detectsystem);
                 http_post("http://104.236.25.60:3072/api", sender);
 
                 sprintf(buftext, "%s", buf);
