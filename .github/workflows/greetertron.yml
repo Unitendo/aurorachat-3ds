@@ -21,7 +21,7 @@ jobs:
       - uses: actions/first-interaction@v3
         with:
           issue_message: |
-            oh yo whats good its me greetertron! i notice you're new around here. Thanks for making this issue, @cool-guy-awesome or @VirtuallyExisting will see it soon™!
+            oh yo whats good its me greetertron! i notice you're new around here. Thanks for making this issue, @VirtuallyExisting, @orstando or @cool-guy-awesome will see it soon™!
 
             
           pr_message: |
