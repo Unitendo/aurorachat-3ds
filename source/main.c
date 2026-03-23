@@ -73,11 +73,29 @@ Have a great day!
 #include <opusfile.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <3ds/services/fs.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <fcntl.h>
+#include "lodepng.h"
+#include "cencode.h"
+#include "cdecode.h"
 
 #include <3ds/applets/swkbd.h>
 
 #include <3ds/types.h>
 #include <3ds/services/cfgu.h>
+
+typedef struct {
+    char username[32];
+    char message[458];
+    C2D_Sprite sprite;
+    bool spritevalid;
+    C2D_Sprite profile;
+} ChatMessage;
+
+ChatMessage chatHistory[50];
+int msgCount = 0;
 
 /*
 
@@ -138,7 +156,7 @@ bool download(const char* url_str, const char* path) {
         if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto cleanup;
         if (CHECK_RESULT("httpcSetSSLOpt",   httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) goto close;
         if (CHECK_RESULT("httpcSetKeepAlive", httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) goto close;
-        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "skibidi toilet"))) goto close;
+        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0"))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "Connection", "Keep-Alive"))) goto close;
 
         if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) goto close;
@@ -497,8 +515,8 @@ bool isSpriteTapped(C2D_Sprite* sprite, float scaleX, float scaleY) {
         float h = sprite->image.subtex->height * scaleY;
         float x = sprite->params.pos.x;
         float y = sprite->params.pos.y;
-        float left = x - w/2, right = x + w/2;
-        float top = y - h/2, bottom = y + h/2;
+        float left = x - w, right = x + w;
+        float top = y - h, bottom = y + h;
 
         if (touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
             wasTouched = true;
@@ -539,6 +557,251 @@ void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u
     }
 }
 
+/*
+
+    show_error
+    Author: Virtualle and nebulagamez
+    Note: Fairly simple, just to make error displaying easier
+
+*/
+void show_error(const char* errtext) {
+    errorConf err;
+    errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_EN); // This initializes the error module with the language set as English, this way it doesn't get messy with a region-changed 3DS
+    errorText(&err, errtext);
+    errorDisp(&err);
+}
+
+/*
+
+    readFileToBuffer()
+    Author: Virtualle
+    Note: Pretty basic, just read a file to a buffer
+
+*/
+
+char* readFileToBuffer(const char* filePath, u32* outSize) {
+    Handle file;
+    u64 fileSize = 0;
+    char* buffer = NULL;
+
+    // Open file
+    Result res = FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filePath), FS_OPEN_READ, 0);   
+    if (R_FAILED(res)) return NULL;
+
+    // Get file size
+    FSFILE_GetSize(file, &fileSize);
+    if (fileSize == 0) {
+        FSFILE_Close(file);
+        return NULL;
+    }
+
+    // Allocate buffer (+1 for null terminator)
+    buffer = (char*)malloc(fileSize + 1);
+    if (!buffer) {
+        FSFILE_Close(file);
+        return NULL;
+    }
+
+    // Read file
+    u32 bytesRead;
+    FSFILE_Read(file, &bytesRead, 0, buffer, fileSize);
+    FSFILE_Close(file);
+
+    // Null-terminate
+    buffer[bytesRead] = '\0';
+    if (outSize) *outSize = bytesRead;
+
+    return buffer;
+}
+
+/*
+
+    WriteToFile()
+    Author: Virtualle
+    Note: Pretty basic, just write something into a file using fprintf
+
+*/
+
+bool WriteToFile(char* path, char* text) {
+    FILE *writehandle = fopen(path, "w");
+    if (!writehandle) {
+        fclose(writehandle);
+        return false;
+    }
+    fprintf(writehandle, text);
+
+    fclose(writehandle);
+    return true;
+}
+
+/*
+
+    createDirectoryRecursive()
+    Author: Virtualle
+    Note: I uh kinda forget but it creates a directory and it does it well so whatever
+
+*/
+
+void createDirectoryRecursive(const char* path) {
+    char temp[256];
+    snprintf(temp, sizeof(temp), "%s", path);
+    char* p = temp;
+    while (*p) {
+        if (*p == '/') {
+            *p = '\0';
+            if (temp[0]) mkdir(temp, 0777);
+            *p = '/';
+        }
+        p++;
+    }
+    if (temp[0]) mkdir(temp, 0777);
+}
+
+static u32 next_pow2(u32 n) {
+    if (n == 0) return 64;
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n++;
+    return (n < 64) ? 64 : (n > 1024) ? 1024 : n;
+}
+
+// Helper: Clamp to range
+static u32 clamp(u32 n, u32 lower, u32 upper) {
+    if (n < lower) return lower;
+    if (n > upper) return upper;
+    return n;
+}
+
+int pngToSprite(C2D_Sprite* sprite, const char* filepath) {
+    FILE* file = fopen(filepath, "rb");
+    if (!file) return -1;
+    
+    fseek(file, 0, SEEK_END);
+    size_t size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    u8* png_data = malloc(size);
+    fread(png_data, 1, size, file);
+    fclose(file);
+
+    unsigned char* rgba_data = NULL;
+    unsigned width, height;
+    u32 error = lodepng_decode32(&rgba_data, &width, &height, png_data, size);
+    free(png_data);
+    if (error) return -2;
+
+    u32* pixels = (u32*)rgba_data;
+    for (unsigned i = 0; i < width * height; i++) {
+        u32 px = pixels[i];
+        pixels[i] = ((px >> 24) & 0xFF) | ((px >> 8) & 0xFF00) | ((px << 8) & 0xFF0000) | ((px << 24) & 0xFF000000);
+    }
+
+    C3D_Tex* tex = linearAlloc(sizeof(C3D_Tex));
+    *tex = (C3D_Tex){0}; // Zero-init
+
+    // Set padded dimensions (power of two)
+    tex->width  = clamp(next_pow2(width), 64, 1024);
+    tex->height = clamp(next_pow2(height), 64, 1024);
+
+    if (!C3D_TexInit(tex, tex->width, tex->height, GPU_RGBA8)) {
+        linearFree(tex);
+        linearFree(rgba_data);
+        return -3;
+    }
+
+    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_NEAREST);
+
+    memset(tex->data, 0, tex->width * tex->height * 4);
+
+    for (unsigned i = 0; i < height; i++) {
+        for (unsigned j = 0; j < width; j++) {
+            u32 src_idx = i * width + j;
+            u32 abgr_px = pixels[src_idx];
+
+            u32 dst_offset = ((((j >> 3) * (tex->width >> 3) + (i >> 3)) << 6) +
+                             ((i & 1) | ((j & 1) << 1) | ((i & 2) << 1) |
+                              ((j & 2) << 2) | ((i & 4) << 2) | ((j & 4) << 3)));
+
+            ((u32*)tex->data)[dst_offset] = abgr_px;
+        }
+    }
+
+    linearFree(rgba_data);
+
+    Tex3DS_SubTexture* subtex = malloc(sizeof(Tex3DS_SubTexture));
+    subtex->width  = (float)width;
+    subtex->height = (float)height;
+    subtex->left   = 0.0f;
+    subtex->top    = 1.0f;
+    subtex->right  = (float)width / tex->width;
+    subtex->bottom = 1.0f - (float)height / tex->height;
+
+    C2D_Image image = {.tex = tex, .subtex = subtex};
+    C2D_SpriteFromImage(sprite, image);
+    C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
+
+    return 1;
+}
+
+C2D_SpriteSheet spriteSheet;
+C2D_Sprite button;
+C2D_Sprite button2;
+C2D_Sprite button3;
+C2D_Sprite button4;
+C2D_Sprite tab1;
+C2D_Sprite tab2;
+C2D_Sprite tab3;
+C2D_Sprite tab4;
+C2D_Sprite tab5;
+C2D_Sprite bottombg;
+C2D_Sprite pfp;
+C2D_Sprite writetab;
+C2D_Sprite drawtab;
+
+int scene = 1;
+
+char password[21];
+char username[21];
+
+bool showpassword = false;
+
+char buftext[256];
+
+bool showpassjustpressed = false;
+
+bool outdated = false;
+
+float selected_scale = 0.4f;
+
+bool savePNG(u16* data, const char* path, u8 (*penSizes)[256]) {
+    int w = 256, h = 256;
+    unsigned char* image = malloc(w * h * 4);
+    if (!image) return false;
+
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            u32 color = 0xFFFFFFFF;
+            if (penSizes[x][y] > 0) color = 0xFF000000;
+
+            int idx = (y * w + x) * 4;
+            image[idx + 0] = (color >> 16) & 0xFF;
+            image[idx + 1] = (color >> 8)  & 0xFF;
+            image[idx + 2] = (color >> 0)  & 0xFF;
+            image[idx + 3] = (color >> 24) & 0xFF;
+        }
+    }
+
+    unsigned error = lodepng_encode32_file(path, image, w, h);
+    free(image);
+    return error == 0;
+}
+
+bool drawtabselected = false;
+bool writetabselected = true;
 
 /*
 
@@ -555,62 +818,54 @@ float chatscroll = 10.0f;
 
 char chat[3000] = "-chat-\n";
 
-void append_message(char* to_add) {
-    size_t len = strlen(chat);
-    size_t add_len = strlen(to_add);
-    int space_left = 2000 - len - 1;
-
-    if (add_len + 1 > space_left) {
-        chat[0] = '\0';
-        chatscroll = 10.0f;
-    }
-
-    // Copy to_add into chat with line breaks every 30 chars
-    int i = 0;
-    while (i < add_len) {
-        int chunk = (add_len - i >= 50) ? 50 : add_len - i;
-        strncat(chat, to_add + i, chunk);
-        len = strlen(chat);
-        if (i + chunk < add_len && len + 2 < 3000) {
-            strcat(chat, "\n");
+void append_message(char* msg, char* usr, char* png_location) {
+    if (msgCount < 50) {
+        strcpy(chatHistory[msgCount].username, usr);
+        strcpy(chatHistory[msgCount].message, msg);
+        pngToSprite(&chatHistory[msgCount].profile, "/3ds/Unitendo/mii.png");
+        if (png_location) {
+            chatHistory[msgCount].spritevalid = true;
+            pngToSprite(&chatHistory[msgCount].sprite, png_location);
         }
-        i += chunk;
+        msgCount++;
+    } else {
+        memset(&chatHistory, 0, sizeof(chatHistory));
+        msgCount = 0;
     }
-    chatscroll = chatscroll - 21;
 }
 
-/*
+char* encode(const char* filename) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) return NULL;
 
-    show_error
-    Author: Virtualle and nebulagamez
-    Note: Fairly simple, just to make error displaying easier
+    fseek(file, 0, SEEK_END);
+    long input_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
 
-*/
-void show_error(const char* errtext) {
-    errorConf err;
-    errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_EN); // This initializes the error module with the language set as English, this way it doesn't get messy with a region-changed 3DS
-    errorText(&err, errtext);
-    errorDisp(&err);
+    unsigned char* buffer = (unsigned char*)malloc(input_len);
+    if (!buffer) {
+        fclose(file);
+        return NULL;
+    }
+    fread(buffer, 1, input_len, file);
+    fclose(file);
+
+    int output_len = (input_len * 4 / 3) + 4;
+    char* output = (char*)malloc(output_len);
+    if (!output) {
+        free(buffer);
+        return NULL;
+    }
+
+    base64_encodestate state;
+    base64_init_encodestate(&state);
+    int len = base64_encode_block(buffer, input_len, output, &state);
+    len += base64_encode_blockend(output + len, &state);
+    output[len] = '\0';
+
+    free(buffer);
+    return output;
 }
-
-C2D_SpriteSheet spriteSheet;
-C2D_Sprite button;
-C2D_Sprite button2;
-C2D_Sprite button3;
-C2D_Sprite button4;
-
-int scene = 1;
-
-char password[21];
-char username[21];
-
-bool showpassword = false;
-
-char buftext[256];
-
-bool showpassjustpressed = false;
-
-bool outdated = false;
 
 
 
@@ -638,8 +893,86 @@ int main() {
     C2D_SpriteFromImage(&button2, C2D_SpriteSheetGetImage(spriteSheet, 0));
     C2D_SpriteFromImage(&button3, C2D_SpriteSheetGetImage(spriteSheet, 0));
     C2D_SpriteFromImage(&button4, C2D_SpriteSheetGetImage(spriteSheet, 0));
+    C2D_SpriteFromImage(&tab1, C2D_SpriteSheetGetImage(spriteSheet, 1));
+    C2D_SpriteFromImage(&tab2, C2D_SpriteSheetGetImage(spriteSheet, 2));
+    C2D_SpriteFromImage(&tab3, C2D_SpriteSheetGetImage(spriteSheet, 3));
+    C2D_SpriteFromImage(&tab4, C2D_SpriteSheetGetImage(spriteSheet, 4));
+    C2D_SpriteFromImage(&tab5, C2D_SpriteSheetGetImage(spriteSheet, 5));
+    C2D_SpriteFromImage(&bottombg, C2D_SpriteSheetGetImage(spriteSheet, 6));
+    C2D_SpriteFromImage(&writetab, C2D_SpriteSheetGetImage(spriteSheet, 1));
+    C2D_SpriteFromImage(&drawtab, C2D_SpriteSheetGetImage(spriteSheet, 4));
+//    C2D_SpriteFromImage(&pfp, C2D_SpriteSheetGetImage(spriteSheet, 7));
 
-    http_post("http://104.236.25.60:3072/api", "{\"cmd\":\"CONNECT\", \"version\":\"4.5\"}");
+    download("http://104.236.25.60:3072/mii/Cooleli912", "/3ds/Unitendo/mii.png");
+
+
+    u8 (*penSizes)[256] = linearAlloc(256 * 256 * sizeof(u8));
+    if (!penSizes) return -1;
+    memset(penSizes, 0, 256 * 256 * sizeof(u8));
+
+    u16* pixelBuffer = linearAlloc(256 * 256 * 2);
+    memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
+
+    touchPosition touch, prevTouch = {-1, -1};
+    int penSize = 4;
+
+    char PNIDName[35] = "hackertron";
+
+    mcuHwcInit();
+
+    InfoLedPattern pattern = {
+    .delay = 0x10,           // 1 second delay
+    .smoothing = 0x00,       // Instant change
+    .loopDelay = 0xFF,       // Play once
+    .blinkSpeed = 0x00,
+    .redPattern = 0xFF,      // Full red
+    .greenPattern = 0xFF,    // Full green
+    .bluePattern = 0xFF      // No blue
+    };
+
+    Result resulter = MCUHWC_SetInfoLedPattern(&pattern);   
+    char resutldbug[20];
+    sprintf(resutldbug, "%d", resulter);
+//    append_message(resutldbug, "LED");
+
+// burger
+
+
+/*
+
+MiiSelectorConf conf;
+MiiSelectorReturn returnbuf;
+
+miiSelectorInit(&conf);
+miiSelectorSetOptions(&conf, MIISELECTOR_CANCEL | MIISELECTOR_GUESTS | MIISELECTOR_TOP);
+miiSelectorSetTitle(&conf, "Choose a Mii");
+miiSelectorSetInitialIndex(&conf, 0);
+miiSelectorWhitelistUserMii(&conf, 0); // Allow first user Mii
+
+miiSelectorLaunch(&conf, &returnbuf);
+
+MiiData mii;
+
+char base64_data[128];
+
+if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
+    base64_encodestate enc_state;
+    base64_init_encodestate(&enc_state);
+    int len = base64_encode_block((char*)&returnbuf.mii, 74, base64_data, &enc_state);
+    len += base64_encode_blockend(base64_data + len, &enc_state);
+    base64_data[len] = '\0';
+
+    char url[400];
+    sprintf(url, "http://104.236.25.60/mii/%s", base64_data);
+    download(url, "/3ds/Unitendo/mii.png");
+}
+    */
+    
+    download("http://104.236.25.60:3072/mii/hackertron", "/3ds/Unitendo/mii.png");
+
+    int tabselected = 1;
+
+    http_post("http://104.236.25.60:3072/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
     sprintf(buftext, "%s", buf);
     if (strstr(buftext, "OUTDATED") != 0) {
         outdated = true;
@@ -648,6 +981,8 @@ int main() {
         show_error("You're banned.\nWe aren't accepting appeals at this time.");
         return 0;
     }
+
+    OggOpusFile *file = op_open_file("romfs:/Project_4.opus", NULL);
 
     sbuffer = C2D_TextBufNew(4096);
 
@@ -664,13 +999,6 @@ int main() {
         // placeholder
     }
 
-    /*
-    
-        Sockets have been majorly deprecated, however they are still used for grabbing messages.
-        The reason for this is because these raw TCP sockets are suspected to be a cause of the doxxing.
-    
-    */
-
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
@@ -680,6 +1008,9 @@ int main() {
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
         // placeholder
     }
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
     u32 textcolor = C2D_Color32(0, 0, 0, 200);
     u32 themecolor = C2D_Color32(255, 255, 255, 255);
@@ -714,6 +1045,7 @@ int main() {
     
     int silly = 0; //used for the silly rules check
 
+
     // whatcha running
     cfguInit();
     u8 model = 7;
@@ -744,6 +1076,15 @@ int main() {
         strcpy(detectsystem, "evil mode");
         break;
     }
+
+    int myscroll = 0;
+
+
+
+    u8 pixels[320][120] = {0};
+
+
+
     // ^
 
     /*
@@ -752,7 +1093,33 @@ int main() {
     
     */
 
+    char *logincreds = readFileToBuffer("/3ds/Unitendo/login.txt", NULL);
+    if (logincreds) {
+        char signuppostbody[400] = {0};
+        char* usrname = strtok(logincreds, ",");
+        char* pass = strtok(NULL, ",");
+        sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
+        http_post("http://104.236.25.60:3072/api", signuppostbody);
+        scene = 10;
+    }
+
+    frdInit(false);
+    FRD_Login(0);
+
+    Presence presence = {0};
+    presence.joinAvailabilityFlag = 1;
+    FriendGameModeDescription desc = {0};
+    utf8_to_utf16(desc, (uint8_t*)"Aurorachat: general-chat", strlen("Aurorachat: general-chat"));
+
     char buffer[1024] = {0};
+
+    append_message("burger", "burger police", NULL);
+
+    pngToSprite(&pfp, "/3ds/Unitendo/mii.png");
+
+    pngToSprite(&chatHistory[0].sprite, "/3ds/Unitendo/mii.png");
+
+    size_t sizerer;
 
     while (aptMainLoop()) {
         /*
@@ -761,6 +1128,16 @@ int main() {
         
         */
         hidScanInput();
+
+        FRD_UpdateMyPresence(&presence, &desc);
+
+        /*
+        u8 *batterylevel = 0;
+        Result burgierier = MCUHWC_GetBatteryLevel(batterylevel);
+
+        char batterydisplay[20];
+        sprintf(batterydisplay, "Battery: %d%%", batterylevel);
+        */
 
 
 
@@ -772,22 +1149,85 @@ int main() {
         timeout.tv_sec = 0;
         timeout.tv_usec = 10000; // 10ms
 
-        if (select(sock + 1, &readfds, NULL, NULL, &timeout) > 0) {
-            ssize_t len = recv(sock, buffer, sizeof(buffer)-1, 0);
-            if (len > 0 && len < 365) {
+        
+        ssize_t len = recv(sock, buffer, 1024-1, 0);
+        if (len > 0) {
+                if (len > 0 & (len < 1024)) {
+                    char* cmd = strtok(buffer, "|");
+                    char* usr = strtok(NULL, "|");
+                    char* msg = strtok(NULL, "|");
+                    char* pnidnameusr = strtok(NULL, "|");
+                    char* imgdata = strtok(NULL, "|");
 
-                buffer[len] = '\0';
 
 
-                append_message(buffer);
-                if (strstr(buffer, "barned") != 0 && (strstr(buffer, "[SYSTEM]") != 0)) {
-                    playSound("romfs:/barned.opus");
+                    if (strcmp(cmd, "CHAT") == 0) {
+                        char miidownloader[200];
+                        sprintf(miidownloader, "http://104.236.25.60:3072/mii/%s", pnidnameusr);
+                        if (!download(miidownloader, "/3ds/Unitendo/mii.png")) {
+                            download("http://104.236.25.60:3072/mii/hackertron", "/3ds/Unitendo/mii.png");
+                        }
+                        if (!imgdata) {
+                            append_message(msg, usr, NULL);
+                        }
+                        if (imgdata) {
+                            createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
+                            download(imgdata, "/3ds/Unitendo/aurorachat/temp/temp.png");
+                            append_message(msg, usr, "/3ds/Unitendo/aurorachat/temp/temp.png");
+                        }
+                    }
                 }
-                if (strstr(buffer, "war") != 0 && (strstr(buffer, "[SYSTEM]") != 0)) {
-                    playSound("romfs:/war.opus");
-				}
-            }
-        }
+        } else if (len == 0) {
+            append_message("Server cut off connection.", "LOCAL", NULL);
+} else {
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        append_message("Server closed connection abruptly! Attempting to reconnect...", "LOCAL", NULL);
+        closesocket(sock);
+        int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        // placeholder
+    }
+
+    struct sockaddr_in server;
+    memset(&server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(4040);
+    server.sin_addr.s_addr = inet_addr("104.236.25.60");
+
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
+        // placeholder
+    }
+
+    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+/*
+    char url[200];
+    sprintf(url, "https://mii-unsecure.ariankordi.net/miis/image.png?data=%s", mii);
+    download(url, "/3ds/Unitendo/mii.png");
+*/
+
+    http_post("http://104.236.25.60:3072/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
+    sprintf(buftext, "%s", buf);
+    if (strstr(buftext, "OUTDATED") != 0) {
+        outdated = true;
+    }
+    if (strstr(buftext, "BANNED") != 0) {
+        show_error("You're banned.\nWe aren't accepting appeals at this time.");
+        return 0;
+    }
+
+    char *logincreds = readFileToBuffer("/3ds/Unitendo/login.txt", NULL);
+    if (logincreds) {
+        char signuppostbody[400] = {0};
+        char* usrname = strtok(logincreds, ",");
+        char* pass = strtok(NULL, ",");
+        sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
+        http_post("http://104.236.25.60:3072/api", signuppostbody);
+        scene = 10;
+    }
+
+    }
+}   
 
         /* MORE! THEMES! NOW!
         >NORMAL THEMES<
@@ -1106,9 +1546,13 @@ int main() {
             rulescroll = 0;
         } /* You wanna see the rules, huh? Huh? Punk? */ // moved to int so there can be rule pages
 
+        // ahhh
+
 
         if (scene == 10) {
             if (hidKeysDown() & KEY_A) {
+                createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
+                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
                 char msg[356];
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 356); // made the username limit even longer because 21 ha ha funny
@@ -1118,35 +1562,41 @@ int main() {
 
                 swkbdInputText(&swkbd, msg, sizeof(msg));
 
-                char sender[600];
-                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"platform\":\"%s\"}", msg, detectsystem);
+                char* drawingbase64 = encode("/3ds/Unitendo/aurorachat/temp/drawing.png");
+                char sender[6000];
+                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"imgdata\":\"%s\", \"pnid\":\"%s\"}", msg, username, password, detectsystem, drawingbase64, PNIDName);
                 http_post("http://104.236.25.60:3072/api", sender);
+                memset(penSizes, 0, 256 * 256 * sizeof(u8));
+                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
+        //        savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
 
                 sprintf(buftext, "%s", buf);
                 if (strstr(buftext, "BANNED") != 0) {
                     show_error("You've been banned.\nWe are not accepting appeals at this time.");
                     return 0;
                 }
+                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
             }
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
-                char msg[356];
+            if (hidKeysDown() & KEY_SELECT) {
                 SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 356); // made the username limit even longer because 21 ha ha funny
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 35); // made the username limit even longer because 21 ha ha funny
                 swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
                 swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Say something...");
+                swkbdSetHintText(&swkbd, "Enter a PNID...");
 
-                swkbdInputText(&swkbd, msg, sizeof(msg));
+                swkbdInputText(&swkbd, PNIDName, sizeof(PNIDName));
+            }
+            if (hidKeysDown() & KEY_ZL) {
+                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
+            }
+            if (isSpriteTapped(&button, 0.4f, 0.4f) & (tabselected == 5)) {
+                SwkbdState swkbd;
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 35); // made the username limit even longer because 21 ha ha funny
+                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
+                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                swkbdSetHintText(&swkbd, "Enter a PNID...");
 
-                char sender[600];
-                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\"}", msg, username, password, detectsystem);
-                http_post("http://104.236.25.60:3072/api", sender);
-
-                sprintf(buftext, "%s", buf);
-                if (strstr(buftext, "BANNED") != 0) {
-                    show_error("You've been banned.\nWe are not accepting appeals at this time.");
-                    return 0;
-                }
+                swkbdInputText(&swkbd, PNIDName, sizeof(PNIDName));
             }
         }
 
@@ -1155,16 +1605,16 @@ int main() {
 
 
         if (scene == 1) {
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
                 scene = 2;
             }
-            if (isSpriteTapped(&button2, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 scene = 3;
             }
         }
 
         if (scene == 2) {
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21); // made the username limit even longer because 21 ha ha funny
                 swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
@@ -1174,7 +1624,7 @@ int main() {
                 swkbdInputText(&swkbd, username, sizeof(username)); 
             }
 
-            if (isSpriteTapped(&button2, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21); // made the username limit even longer because 21 ha ha funny
                 swkbdSetFeatures(&swkbd, SWKBD_DEFAULT_QWERTY); // i added a cancel button, yippe
@@ -1190,7 +1640,7 @@ int main() {
 
                 swkbdInputText(&swkbd, password, sizeof(password)); 
             }
-            if (isSpriteTapped(&button3, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button3, 0.4f, 0.4f)) {
                 scene = 4;
             }
 
@@ -1200,7 +1650,7 @@ int main() {
         }
 
         if (scene == 4) {
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
                 if (!showpassjustpressed) {
                     showpassword = !showpassword;
                     showpassjustpressed = true;
@@ -1208,7 +1658,7 @@ int main() {
             } else {
                 showpassjustpressed = false;
             }
-            if (isSpriteTapped(&button2, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 char signuppostbody[128];
                 sprintf(signuppostbody, "{\"cmd\":\"MAKEACC\", \"username\":\"%s\", \"password\":\"%s\"}", username, password);
                 http_post("http://104.236.25.60:3072/api", signuppostbody);
@@ -1237,7 +1687,7 @@ int main() {
 
         if (scene == 3) {
 
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21);
                 swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
@@ -1247,7 +1697,7 @@ int main() {
                 swkbdInputText(&swkbd, username, sizeof(username));
             }
 
-            if (isSpriteTapped(&button2, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21);
                 swkbdSetFeatures(&swkbd, SWKBD_DEFAULT_QWERTY);
@@ -1263,7 +1713,7 @@ int main() {
 
                 swkbdInputText(&swkbd, password, sizeof(password)); 
             }
-            if (isSpriteTapped(&button3, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button3, 0.4f, 0.4f)) {
                 scene = 5;
             }
 
@@ -1273,7 +1723,7 @@ int main() {
         }
 
         if (scene == 5) {
-            if (isSpriteTapped(&button, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
                 if (!showpassjustpressed) {
                     showpassword = !showpassword;
                     showpassjustpressed = true;
@@ -1281,16 +1731,16 @@ int main() {
             } else {
                 showpassjustpressed = false;
             }
-            if (isSpriteTapped(&button2, 0.8f, 0.8f)) {
+            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 char signuppostbody[128];
                 sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", username, password);
                 http_post("http://104.236.25.60:3072/api", signuppostbody);
                 sprintf(buftext, "%s", buf);
                 if (strstr(buftext, "LOGIN_OK") != 0) {
                     scene = 10;
-                    char welcome[100];
-                    sprintf(welcome, "Welcome to aurorachat, %s!\n", username);
-                    append_message(welcome);
+                    sprintf(signuppostbody, "%s,%s", username, password);
+                    createDirectoryRecursive("/3ds/Unitendo");
+                    WriteToFile("/3ds/Unitendo/login.txt", signuppostbody);
                 }
                 if (strcmp(buftext, "(null)") == 0) {
                     scene = 61;
@@ -1337,31 +1787,233 @@ int main() {
         C2D_TargetClear(bottom, themecolorb);
 
         C2D_SceneBegin(top);
-
-        DrawText("Aurorachat", 290.0f, 5.0f, 0, 0.7f, 0.7f, logocolor, true);
-        DrawText("version 4.5", 321.0f, 20.0f, 0, 0.5f, 0.5f, logocolor, true);
+   //     DrawText(batterydisplay, 220.0f, 3.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 255, 255), true);
 
 
         if (scene == 10) {
-            DrawText(chat, 10.0f, chatscroll, 0, 0.5f, 0.5f, textcolor, true);
+         //   DrawText(chat, 10.0f, chatscroll, 0, 0.5f, 0.5f, textcolor, true);
+            float y = chatscroll;
+            for (int i = 0; i < msgCount; i++) {
+                C2D_DrawRectangle(10.0f, y + 5.0f, 0.0f, 300.0f, 150.0f, textcolorb, textcolorb, textcolorb, textcolorb);
+                C2D_DrawRectSolid(10.0f + 2.8f, y + 7.0f, 0.0f, 300.0f - 5.0f, 150.0f - 5.0f, themecolor);
+                C2D_SpriteSetPos(&chatHistory[i].profile, 30.0f, y + 20.0f);
+                C2D_SpriteSetScale(&chatHistory[i].profile, 0.5f, -0.5f);
+                C2D_SpriteSetRotationDegrees(&chatHistory[i].profile, 90);
+                C2D_DrawSprite(&chatHistory[i].profile);
+                DrawText(chatHistory[i].username, 50.0f, y + 10, 0, 0.7f, 0.7f, textcolor, true);
+                DrawText(chatHistory[i].message, 50.0f, y + 30, 0, 0.5f, 0.5f, textcolor, true);
+                if (chatHistory[i].spritevalid == true) {
+                    C2D_SpriteSetScale(&chatHistory[i].sprite, 0.4f, -0.4f);
+                    C2D_SpriteSetRotationDegrees(&chatHistory[i].sprite, 90);
+                    C2D_SpriteSetPos(&chatHistory[i].sprite, 80.0f, y + 100);
+                    C2D_DrawSprite(&chatHistory[i].sprite);
+                }
+                y += 170;
+            }
+
+            if (hidKeysDown() & KEY_B) {
+
+            }
 
             C2D_SceneBegin(bottom);
+            C2D_ImageTint bottombgtint;
+            C2D_AlphaImageTint(&bottombgtint, 0.3f);
+            C2D_SpriteSetScale(&bottombg, 0.5f, 0.5f);
+            C2D_DrawSpriteTinted(&bottombg, &bottombgtint);
             if (rulesvisible == 0) {
-                C2D_SpriteSetPos(&button, 200.0f, 200.0f);
-                C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-                C2D_DrawSprite(&button);
 
-                DrawText("Send", 235.0f, 215.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
 
-                DrawText(": Send Message", 10.0f, 10.0f, 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText(", : Scroll Chat", 10.0f, 30.0f, 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText(": View Rules", 10.0f, 50.0f, 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText(", : Toggle Theme", 10.0f, 70.0f, 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText(": Reverse Theme", 10.0f, 90.0f, 0, 0.5f, 0.5f, textcolorb, true);
+                if (isSpriteTapped(&tab1, 0.3f, 0.3f)) {
+                    selected_scale = 0.2f;
+                    tabselected = 1;
+                }
+                if (isSpriteTapped(&tab2, 0.3f, 0.3f)) {
+                    selected_scale = 0.2f;
+                    tabselected = 2;
+                }
+                if (isSpriteTapped(&tab3, 0.4f, 0.3f)) {
+                    selected_scale = 0.2f;
+                    tabselected = 3;
+                }
+                if (isSpriteTapped(&tab4, 0.3f, 0.3f)) {
+                    selected_scale = 0.2f;
+                    tabselected = 4;
+                }
+                if (isSpriteTapped(&tab5, 0.3f, 0.3f)) {
+                    selected_scale = 0.2f;
+                    tabselected = 5;
+                }
+
+                if (isSpriteTapped(&drawtab, 0.2f, 0.2f)) {
+                    selected_scale = 0.1f;
+                    drawtabselected = true;
+                    writetabselected = false;
+                } 
+
+                if (isSpriteTapped(&writetab, 0.2f, 0.2f)) {
+                    selected_scale = 0.1f;
+                    drawtabselected = false;
+                    writetabselected = true;
+                } 
+
+
+
+
+
+                C2D_SpriteSetPos(&tab1, 0.0f, 10.0f);
+                C2D_SpriteSetScale(&tab1, 0.3f, 0.3f);
+                C2D_SpriteSetScale(&tab2, 0.3f, 0.3f);
+                C2D_SpriteSetScale(&tab3, 0.3f, 0.3f);
+                C2D_SpriteSetScale(&tab4, 0.3f, 0.3f);
+                C2D_SpriteSetScale(&tab5, 0.3f, 0.3f);
+                C2D_SpriteSetPos(&tab2, 0.0f, 50.0f);
+                C2D_SpriteSetPos(&tab3, 0.0f, 90.0f);
+                C2D_SpriteSetPos(&tab4, 0.0f, 130.0f);
+                C2D_SpriteSetPos(&tab5, 0.0f, 170.0f);
+                C2D_ImageTint unselectedtint;
+                C2D_AlphaImageTint(&unselectedtint, 0.4f);
+                switch (tabselected) {
+                    case 1:
+                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
+                        C2D_SpriteSetScale(&tab1, selected_scale, selected_scale);
+                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
+                        C2D_DrawSprite(&tab1);
+
+                        C2D_SpriteSetPos(&drawtab, 100.0f, 200.0f);
+                        C2D_SpriteSetScale(&drawtab, 0.2f, 0.2f);
+                        C2D_SpriteSetScale(&writetab, 0.2f, 0.2f);
+                        C2D_SpriteSetPos(&writetab, 200.0f, 200.0f);
+                        C2D_DrawSprite(&drawtab);
+                        C2D_DrawSprite(&writetab);
+
+                        DrawText("Users Online: ERR", 105.0f, 0.0f, 0, 0.5f, 0.5f, textcolor, true);
+
+
+                        if (drawtabselected) {
+
+          //                  if (hidKeysDown() & KEY_ZR) {
+             //                   char thingyesyesthingmhm[600]
+             //                   sprintf(thingyesyesthingmhm, "{\"cmd\":\"SENDDRAWING\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"data\":\"%s\"}", );
+             //                   http_post("");
+              //              }
+
+
+                if (hidKeysHeld() & KEY_TOUCH) {
+                hidTouchRead(&touch);
+                int x = touch.px;
+                int y = touch.py - 60;
+                int px = prevTouch.px;
+                int py = prevTouch.py - 60;
+
+                if (prevTouch.px != -1 && 
+                    px >= 0 && px < 256 && 
+                    py >= 0 && py < 256 && 
+                    x >= 0 && x < 256 && 
+                    y >= 0 && y < 256) {
+
+                    int dx = abs(x - px), sx = px < x ? 1 : -1;
+                    int dy = abs(y - py), sy = py < y ? 1 : -1;
+                    int err = (dx > dy ? dx : -dy) / 2;
+                    while (px != x || py != y) {
+                        int e2 = err;
+                        if (e2 > -dx) { err -= dy; px += sx; }
+                        if (e2 < dy) { err += dx; py += sy; }
+                        if (px >= 0 && px < 256 && py >= 0 && py < 256) {
+                            penSizes[px][py] = penSize;
+                            pixelBuffer[py * 256 + px] = 0x0000;
+                        }
+                    }
+                }
+
+                if (x >= 0 && x < 256 && y >= 0 && y < 256) {
+                    penSizes[x][y] = penSize;
+                    pixelBuffer[y * 256 + x] = 0x0000;
+                }
+                prevTouch = touch;
+            } else {
+                prevTouch.px = prevTouch.py = -1;
+            }
+
+            for (int y = 0; y < 256; y++) {
+                for (int x = 0; x < 256; x++) {
+                    if (penSizes[x][y] > 0) {
+                        int size = penSizes[x][y];
+                        C2D_DrawRectSolid(x, y + 60, 0.5f, size, size, C2D_Color32(0, 0, 0, 255));
+                    }
+                }
+            }
+        }
+
+                        break;
+                    case 2:
+                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
+                        C2D_SpriteSetScale(&tab2, selected_scale, selected_scale);
+                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
+                        C2D_DrawSprite(&tab2);
+
+                        DrawText("Aurorachat", 220.0f, 5.0f, 0, 0.7f, 0.7f, logocolor, true);
+                        DrawText("ver. 0.5.0", 220.0f, 20.0f, 0, 0.5f, 0.5f, logocolor, true);
+                        DrawText("Programmed by Virtualle and at_real", 50.0f, 40.0f, 0, 0.5f, 0.5f, textcolor, true);
+                        DrawText("Graphics by Hugh and Bread Guy", 60.0f, 65.0f, 0, 0.5f, 0.5f, textcolor, true);
+                        DrawText("Press Y to see the rules", 75.0f, 200.0f, 0, 0.5f, 0.5f, textcolor, true);
+                        DrawText("Codename: Quality Controlled", 60.0f, 80.0f, 0, 0.5f, 0.5f, textcolor, true);
+                        break;
+                    case 3:
+                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
+                        C2D_SpriteSetScale(&tab3, selected_scale, selected_scale);
+                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
+                        C2D_DrawSprite(&tab3);
+                        break;
+                    case 4:
+                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
+                        C2D_SpriteSetScale(&tab4, selected_scale, selected_scale);
+                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
+                        C2D_DrawSprite(&tab4);
+                        break;
+                    case 5:
+                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
+                        C2D_SpriteSetScale(&tab5, selected_scale, selected_scale);
+                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
+                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
+                        C2D_DrawSprite(&tab5);
+
+                        C2D_SpriteSetScale(&button, 0.4f, 0.4f);
+                        C2D_SpriteSetPos(&button, 80.0f, 150.0f);
+                        C2D_DrawSprite(&button);
+
+                        DrawText("Set Mii PNID", 120.0f, 170.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
+
+                        break;
+                }
+
+
+
+
+                /*
                 char themealert[40];
                 sprintf(themealert, "Current Theme:\n%s\n%s", currenttheme, thememode);
-                DrawText(themealert, 10.0f, 190.0f, 0, 0.5f, 0.5f, textcolorb, true);
+                DrawText(themealert, 100.0f, 200.0f, 0, 0.5f, 0.5f, textcolorb, true);
+                */
             }
+
+            
+
+
+
 
             if (rulesvisible == 1) { //rules here
                 if (silly > 1) { //as in, values of 0, 1, 2, or 3 will trigger the silly rules
@@ -1699,9 +2351,17 @@ int main() {
 
 
 
+        if (waveBufs[0].status == NDSP_WBUF_DONE) {
+            if (!fillBuffer(file, &waveBufs[0]));
+        }
+        if (waveBufs[1].status == NDSP_WBUF_DONE) {
+            if (!fillBuffer(file, &waveBufs[1]));
+        }
 
 
 
+
+        C2D_Flush();
         C3D_FrameEnd(0);
 
     }
