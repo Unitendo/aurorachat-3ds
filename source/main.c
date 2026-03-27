@@ -5,9 +5,6 @@
   / _` | | | | '__/ _ \| '__/ _` |/ __| '_ \ / _` | __|
  | (_| | |_| | | | (_) | | | (_| | (__| | | | (_| | |_ 
   \__,_|\__,_|_|  \___/|_|  \__,_|\___|_| |_|\__,_|\__|                    
-             __  __     __  ______ __     
-            |__)|_ |  ||__)| |  | |_ |\ | 
-            | \ |__|/\|| \ | |  | |__| \| 
                               
 
     Project initialized and owned by: mii-man
@@ -17,50 +14,7 @@
     Commentary by: Virtualle
 
 
-
-
-    This project was inspired by hbchat, a project created by Virtualle in October 2025, the project collapsed due to a doxxing that had 4 victims.
-
-
-    Aurorachat is designed to remove the flawed, tangled mess of bugs and exploits that were in hbchat and make something that will inspire many and grow a community once more.
-
-
-
-
-
-    This code is owned underneath the license given with the project, if you are to distribute this code the license is required to be with the code.
-    
-
-
-    This is a rewrite of the original aurorachat, remade to use aurorahttp by Orstando and to have much better choices. The comment you've just read was created by VirtuallyExisting / Virtualle, have a good day!
-
-
 */
-
-/*
-.__          .__                   __                  __                      ._.
-|__| _____   |  |__ _____    ____ |  | __ ____________/  |________  ____   ____| |
-|  |/     \  |  |  \\__  \ _/ ___\|  |/ // __ \_  __ \   __\_  __ \/  _ \ /    \ |
-|  |  Y Y  \ |   Y  \/ __ \\  \___|    <\  ___/|  | \/|  |  |  | \(  <_> )   |  \|
-|__|__|_|  / |___|  (____  /\___  >__|_ \\___  >__|   |__|  |__|   \____/|___|  /_
-         \/       \/     \/     \/     \/    \/                               \/\/
-The comment you've just read was created by cool-guy-awesome / hackertron. I hope you liked it.
-
-
-You better like it.
-
-
-Or else.
-
-
-
-
-
-
-Have a great day!
-*/
-
-/* Oh yeah, and don't remove my newlines. Thanks! -hackertron */
 
 
 
