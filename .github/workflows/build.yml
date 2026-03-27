@@ -31,13 +31,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aurorachat 3DSX Automatic Build (could be unfinished!)
-          path: ./aurorachat.3dsx
+          path: ./aurorachat-3ds.3dsx
         
       - name: Upload CIA 
         uses: actions/upload-artifact@v4
         with:
           name: aurorachat CIA Automatic Build (could be unfinished!)
-          path: ./aurorachat.cia
+          path: ./aurorachat-3ds.cia
       - name: Setup Java JDK
         uses: actions/setup-java@v5.1.0
         with:
