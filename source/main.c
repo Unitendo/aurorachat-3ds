@@ -789,8 +789,8 @@ bool savePNG(u16* data, const char* path, u8 (*penSizes)[256]) {
 
             int idx = (y * w + x) * 4;
             image[idx + 0] = (color >> 16) & 0xFF;
-            image[idx + 1] = (color >> 8)  & 0xFF;
-            image[idx + 2] = (color >> 0)  & 0xFF;
+            image[idx + 1] = (color >> 8) & 0xFF;
+            image[idx + 2] = (color >> 0) & 0xFF;
             image[idx + 3] = (color >> 24) & 0xFF;
         }
     }
@@ -814,7 +814,7 @@ bool writetabselected = true;
 
 */
 
-float chatscroll = 10.0f;
+float chatscroll = 60.0f;
 
 char chat[3000] = "-chat-\n";
 
@@ -828,9 +828,11 @@ void append_message(char* msg, char* usr, char* png_location) {
             pngToSprite(&chatHistory[msgCount].sprite, png_location);
         }
         msgCount++;
+        chatscroll -= 120;
     } else {
         memset(&chatHistory, 0, sizeof(chatHistory));
         msgCount = 0;
+        chatscroll = 60.0f;
     }
 }
 
@@ -866,6 +868,8 @@ char* encode(const char* filename) {
     free(buffer);
     return output;
 }
+
+char msg[365];
 
 
 
@@ -903,7 +907,7 @@ int main() {
     C2D_SpriteFromImage(&drawtab, C2D_SpriteSheetGetImage(spriteSheet, 4));
 //    C2D_SpriteFromImage(&pfp, C2D_SpriteSheetGetImage(spriteSheet, 7));
 
-    download("http://104.236.25.60:3072/mii/Cooleli912", "/3ds/Unitendo/mii.png");
+    download("http://104.236.25.60:3073/mii/Cooleli912", "/3ds/Unitendo/mii.png");
 
 
     u8 (*penSizes)[256] = linearAlloc(256 * 256 * sizeof(u8));
@@ -968,11 +972,11 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
 }
     */
     
-    download("http://104.236.25.60:3072/mii/hackertron", "/3ds/Unitendo/mii.png");
+    download("http://104.236.25.60:3073/mii/hackertron", "/3ds/Unitendo/mii.png");
 
     int tabselected = 1;
 
-    http_post("http://104.236.25.60:3072/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
+    http_post("http://104.236.25.60:3073/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
     sprintf(buftext, "%s", buf);
     if (strstr(buftext, "OUTDATED") != 0) {
         outdated = true;
@@ -1002,7 +1006,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    server.sin_port = htons(4040);
+    server.sin_port = htons(4041);
     server.sin_addr.s_addr = inet_addr("104.236.25.60");
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
@@ -1099,7 +1103,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
         char* usrname = strtok(logincreds, ",");
         char* pass = strtok(NULL, ",");
         sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
-        http_post("http://104.236.25.60:3072/api", signuppostbody);
+        http_post("http://104.236.25.60:3073/api", signuppostbody);
         scene = 10;
     }
 
@@ -1113,7 +1117,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
 
     char buffer[1024] = {0};
 
-    append_message("burger", "burger police", NULL);
+    append_message("Welcome to aurorachat!", "LOCAL", NULL);
 
     pngToSprite(&pfp, "/3ds/Unitendo/mii.png");
 
@@ -1157,15 +1161,15 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
                     char* usr = strtok(NULL, "|");
                     char* msg = strtok(NULL, "|");
                     char* pnidnameusr = strtok(NULL, "|");
-                    char* imgdata = strtok(NULL, "|");
+                    char* imgdata = "http://104.236.25.60:3073/cdn/image.png";
 
 
 
                     if (strcmp(cmd, "CHAT") == 0) {
                         char miidownloader[200];
-                        sprintf(miidownloader, "http://104.236.25.60:3072/mii/%s", pnidnameusr);
+                        sprintf(miidownloader, "http://104.236.25.60:3073/mii/%s", pnidnameusr);
                         if (!download(miidownloader, "/3ds/Unitendo/mii.png")) {
-                            download("http://104.236.25.60:3072/mii/hackertron", "/3ds/Unitendo/mii.png");
+                            download("http://104.236.25.60:3073/mii/hackertron", "/3ds/Unitendo/mii.png");
                         }
                         if (!imgdata) {
                             append_message(msg, usr, NULL);
@@ -1191,7 +1195,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    server.sin_port = htons(4040);
+    server.sin_port = htons(4041);
     server.sin_addr.s_addr = inet_addr("104.236.25.60");
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
@@ -1206,7 +1210,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
     download(url, "/3ds/Unitendo/mii.png");
 */
 
-    http_post("http://104.236.25.60:3072/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
+    http_post("http://104.236.25.60:3073/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
     sprintf(buftext, "%s", buf);
     if (strstr(buftext, "OUTDATED") != 0) {
         outdated = true;
@@ -1222,7 +1226,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
         char* usrname = strtok(logincreds, ",");
         char* pass = strtok(NULL, ",");
         sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
-        http_post("http://104.236.25.60:3072/api", signuppostbody);
+        http_post("http://104.236.25.60:3073/api", signuppostbody);
         scene = 10;
     }
 
@@ -1565,7 +1569,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
                 char* drawingbase64 = encode("/3ds/Unitendo/aurorachat/temp/drawing.png");
                 char sender[6000];
                 sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"imgdata\":\"%s\", \"pnid\":\"%s\"}", msg, username, password, detectsystem, drawingbase64, PNIDName);
-                http_post("http://104.236.25.60:3072/api", sender);
+                http_post("http://104.236.25.60:3073/api", sender);
                 memset(penSizes, 0, 256 * 256 * sizeof(u8));
                 memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
         //        savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
@@ -1661,7 +1665,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
             if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 char signuppostbody[128];
                 sprintf(signuppostbody, "{\"cmd\":\"MAKEACC\", \"username\":\"%s\", \"password\":\"%s\"}", username, password);
-                http_post("http://104.236.25.60:3072/api", signuppostbody);
+                http_post("http://104.236.25.60:3073/api", signuppostbody);
                 sprintf(buftext, "%s", buf);
                 if (strstr(buftext, "USR_CREATED") != 0) {
                     scene = 1;
@@ -1734,7 +1738,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
             if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
                 char signuppostbody[128];
                 sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", username, password);
-                http_post("http://104.236.25.60:3072/api", signuppostbody);
+                http_post("http://104.236.25.60:3073/api", signuppostbody);
                 sprintf(buftext, "%s", buf);
                 if (strstr(buftext, "LOGIN_OK") != 0) {
                     scene = 10;
@@ -1811,10 +1815,6 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
                 y += 170;
             }
 
-            if (hidKeysDown() & KEY_B) {
-
-            }
-
             C2D_SceneBegin(bottom);
             C2D_ImageTint bottombgtint;
             C2D_AlphaImageTint(&bottombgtint, 0.3f);
@@ -1823,23 +1823,23 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
             if (rulesvisible == 0) {
 
 
-                if (isSpriteTapped(&tab1, 0.3f, 0.3f)) {
+                if (isSpriteTapped(&tab1, 0.3f, 0.2f)) {
                     selected_scale = 0.2f;
                     tabselected = 1;
                 }
-                if (isSpriteTapped(&tab2, 0.3f, 0.3f)) {
+                if (isSpriteTapped(&tab2, 0.3f, 0.2f)) {
                     selected_scale = 0.2f;
                     tabselected = 2;
                 }
-                if (isSpriteTapped(&tab3, 0.4f, 0.3f)) {
+                if (isSpriteTapped(&tab3, 0.3f, 0.2f)) {
                     selected_scale = 0.2f;
                     tabselected = 3;
                 }
-                if (isSpriteTapped(&tab4, 0.3f, 0.3f)) {
+                if (isSpriteTapped(&tab4, 0.3f, 0.2f)) {
                     selected_scale = 0.2f;
                     tabselected = 4;
                 }
-                if (isSpriteTapped(&tab5, 0.3f, 0.3f)) {
+                if (isSpriteTapped(&tab5, 0.3f, 0.2f)) {
                     selected_scale = 0.2f;
                     tabselected = 5;
                 }
@@ -1882,10 +1882,44 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
                         C2D_DrawSpriteTinted(&tab5, &unselectedtint);
                         C2D_DrawSprite(&tab1);
 
-                        C2D_SpriteSetPos(&drawtab, 100.0f, 200.0f);
-                        C2D_SpriteSetScale(&drawtab, 0.2f, 0.2f);
-                        C2D_SpriteSetScale(&writetab, 0.2f, 0.2f);
-                        C2D_SpriteSetPos(&writetab, 200.0f, 200.0f);
+                        C2D_SpriteSetScale(&button3, 0.3f, 0.3f);
+                        C2D_SpriteSetPos(&button3, 190.0f, 200.0f);
+                        C2D_DrawSprite(&button3);
+
+                        DrawText("Send", 230.0f, 203.0f, 0, 0.7f, 0.7f, textcolor, true);
+
+                        if (isSpriteTapped(&button3, 0.15f, 0.1f)) {
+                createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
+                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
+
+                char* drawingbase64 = encode("/3ds/Unitendo/aurorachat/temp/drawing.png");
+                char sender[6000];
+                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"imgdata\":\"%s\", \"pnid\":\"%s\"}", msg, username, password, detectsystem, drawingbase64, PNIDName);
+                http_post("http://104.236.25.60:3073/api", sender);
+                memset(penSizes, 0, 256 * 256 * sizeof(u8));
+                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
+        //        savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
+
+                sprintf(buftext, "%s", buf);
+                if (strstr(buftext, "BANNED") != 0) {
+                    show_error("You've been banned.\nWe are not accepting appeals at this time.");
+                    return 0;
+                }
+                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
+            }
+
+                        C2D_SpriteSetPos(&drawtab, 100.0f, 50.0f);
+
+                        if (writetabselected) {
+                            C2D_SpriteSetScale(&writetab, selected_scale, selected_scale);
+                            C2D_SpriteSetScale(&drawtab, 0.2f, 0.2f);
+                        }
+
+                        if (drawtabselected) {
+                            C2D_SpriteSetScale(&drawtab, selected_scale, selected_scale);
+                            C2D_SpriteSetScale(&writetab, 0.2f, 0.2f);
+                        }
+                        C2D_SpriteSetPos(&writetab, 200.0f, 50.0f);
                         C2D_DrawSprite(&drawtab);
                         C2D_DrawSprite(&writetab);
 
@@ -1945,7 +1979,23 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
                     }
                 }
             }
+
+            C2D_SpriteSetScale(&button2, 0.3f, 0.3f);
+            C2D_SpriteSetPos(&button2, 190.0f, 10.0f);
+            C2D_DrawSprite(&button2);
+            DrawText("Clear", 229.0f, 13.0f, 0, 0.7f, 0.7f, textcolor, true);
+
+            if (isSpriteTapped(&button2, 0.3f, 0.3f)) {
+                memset(penSizes, 0, 256 * 256 * sizeof(u8));
+                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
+            }
         }
+
+
+                    if (writetabselected) {
+                        C2D_DrawRectangle(60.0f, y + 5.0f, 0.0f, 230.0f, 40.0f, textcolorb, textcolorb, textcolorb, textcolorb);
+                        C2D_DrawRectSolid(60.0f + 2.8f, y + 7.0f, 0.0f, 230.0f - 5.0f, 40.0f - 5.0f, themecolor);
+                    }
 
                         break;
                     case 2:
