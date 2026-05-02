@@ -642,17 +642,6 @@ int main() {
 	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
     C2D_SpriteFromImage(&loading, C2D_SpriteSheetGetImage(spriteSheet, 0));
     C2D_SpriteFromImage(&bg, C2D_SpriteSheetGetImage(spriteSheet, 6));
-/*
-    http_post("http://104.236.25.60:6767/api/signup", "virtualle|4urger|");
-    http_post("http://104.236.25.60:6767/api/login", "virtualle|4urger|");
-    sprintf(buftext, "%s", buf);
-    if (strstr(buftext, "ERR_WRONG_PASS") != 0) {
-        show_error("Wrong password.\nTry again.");
-    } else {
-        char* intactToken = strtok(buftext, "|");
-        sprintf(token, "%s", intactToken);
-    }
-*/
 
 	sbuffer = C2D_TextBufNew(4096);
 
