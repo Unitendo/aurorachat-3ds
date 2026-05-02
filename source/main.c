@@ -1,23 +1,3 @@
-/*
-                                       _           _   
-                                      | |         | |  
-   __ _ _   _ _ __ ___  _ __ __ _  ___| |__   __ _| |_ 
-  / _` | | | | '__/ _ \| '__/ _` |/ __| '_ \ / _` | __|
- | (_| | |_| | | | (_) | | | (_| | (__| | | | (_| | |_ 
-  \__,_|\__,_|_|  \___/|_|  \__,_|\___|_| |_|\__,_|\__|                    
-                              
-
-    Project initialized and owned by: mii-man
-    Lead Developer: Virtualle / VirtuallyExisting
-    Server Developed by: hackertron and Orstando
-    Music by: Virtualle, manti-09
-    Commentary by: Virtualle
-
-
-*/
-
-
-
 #include <3ds.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,29 +7,15 @@
 #include <opusfile.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <3ds/services/fs.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
-#include "lodepng.h"
-#include "cencode.h"
-#include "cdecode.h"
 
 #include <3ds/applets/swkbd.h>
 
 #include <3ds/types.h>
 #include <3ds/services/cfgu.h>
 
-typedef struct {
-    char username[32];
-    char message[458];
-    C2D_Sprite sprite;
-    bool spritevalid;
-    C2D_Sprite profile;
-} ChatMessage;
-
-ChatMessage chatHistory[50];
-int msgCount = 0;
+char token[300];
 
 /*
 
@@ -110,7 +76,7 @@ bool download(const char* url_str, const char* path) {
         if (CHECK_RESULT("httpcOpenContext", httpcOpenContext(&context, HTTPC_METHOD_GET, url.data, 0))) goto cleanup;
         if (CHECK_RESULT("httpcSetSSLOpt",   httpcSetSSLOpt(&context, SSLCOPT_DisableVerify))) goto close;
         if (CHECK_RESULT("httpcSetKeepAlive", httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED))) goto close;
-        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0"))) goto close;
+        if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "User-Agent", "skibidi toilet"))) goto close;
         if (CHECK_RESULT("httpcAddRequestHeaderField", httpcAddRequestHeaderField(&context, "Connection", "Keep-Alive"))) goto close;
 
         if (CHECK_RESULT("httpcBeginRequest", httpcBeginRequest(&context))) goto close;
@@ -207,7 +173,7 @@ Thread startDownload(const char* url, const char* path) {
 }
 
 
-
+char* errors = "no error";
 
 Result http_post(const char* url, const char* data) {
     Result ret = 0;
@@ -217,8 +183,6 @@ Result http_post(const char* url, const char* data) {
     u32 contentsize = 0, readsize = 0, size = 0;
     buf = NULL;
     u8 *lastbuf = NULL;
-    char length[256];
-    int contentlength;
 
     do {
         ret = httpcOpenContext(&context, HTTPC_METHOD_POST, url, 0);
@@ -230,17 +194,13 @@ Result http_post(const char* url, const char* data) {
         ret = httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED);
         if (ret != 0) break;
 
-        ret = httpcAddRequestHeaderField(&context, "User-Agent", "skibidi toilet");
+        ret = httpcAddRequestHeaderField(&context, "User-Agent", "aurorachat For Nintendo 3DS Systems (v6.0)");
         if (ret != 0) break;
 
-        ret = httpcAddRequestHeaderField(&context, "Content-Type", "application/json");
+        ret = httpcAddRequestHeaderField(&context, "Content-Type", "text/plain");
         if (ret != 0) break;
 
-        contentlength = strlen(data);
-        sprintf(length, "%d", contentlength);
-
-        ret = httpcAddRequestHeaderField(&context, "Content-Length", length);
-        if (ret != 0) break;
+        ret = httpcAddRequestHeaderField(&context, "auth", token);
 
         ret = httpcAddPostDataRaw(&context, (u32*)data, strlen(data));
         if (ret != 0) break;
@@ -248,10 +208,9 @@ Result http_post(const char* url, const char* data) {
         ret = httpcBeginRequest(&context);
         if (ret != 0) break;
 
-        ret = httpcGetResponseStatusCode(&context, &statuscode);
+        ret = httpcGetResponseStatusCodeTimeout(&context, &statuscode, 670 * 1000 * 1000);
         if (ret != 0) break;
 
-        // Handle redirects
         if ((statuscode >= 301 && statuscode <= 303) || (statuscode >= 307 && statuscode <= 308)) {
             if (newurl == NULL) newurl = malloc(0x1000);
             if (newurl == NULL) { ret = -1; break; }
@@ -263,7 +222,18 @@ Result http_post(const char* url, const char* data) {
         }
 
         if (statuscode != 200) {
-            printf("HTTP Error: %lu\n", statuscode);
+            sprintf(errors, "HTTP Error: %x\n", statuscode);
+            ret = httpcDownloadData(&context, buf + size, 0x1000, &readsize);
+            size += readsize;
+            if (ret == (s32)HTTPC_RESULTCODE_DOWNLOADPENDING) {
+                lastbuf = buf;
+                buf = realloc(buf, size + 0x1000);
+                if (buf == NULL) { free(lastbuf); ret = -1; break; }
+            }
+            if (ret == 0) {
+                buf = realloc(buf, size);
+                printf("Response: %s\n", buf);
+            }
             ret = -2;
             break;
         }
@@ -285,7 +255,7 @@ Result http_post(const char* url, const char* data) {
         } while (ret == (s32)HTTPC_RESULTCODE_DOWNLOADPENDING);
 
         if (ret == 0) {
-            buf = realloc(buf, size); // Resize to actual size
+            buf = realloc(buf, size);
             printf("Response: %s\n", buf);
         }
 
@@ -294,6 +264,15 @@ Result http_post(const char* url, const char* data) {
     if (newurl) free(newurl);
     httpcCloseContext(&context);
     return ret;
+}
+
+void httpPostThread(void* arg) {
+    const char* url = ((char**)arg)[0];
+    const char* data = ((char**)arg)[1];
+
+    http_post(url, data);
+
+    threadExit(0);
 }
 
 
@@ -324,13 +303,13 @@ bool fillBuffer(OggOpusFile *file, ndspWaveBuf *buf) {
         int ret = op_read_stereo(file, ptr, (SAMPLES_PER_BUF - total) * CHANNELS);
         
         if (ret <= 0) {
-            // End of stream or error — try to loop
+            // End of stream or error, try to loop
             if (ret == OP_HOLE || ret == OPUS_INVALID_PACKET) {
                 continue; // Skip invalid data, keep reading
             }
             // Attempt to seek to beginning of stream
             if (op_pcm_seek(file, 0) < 0) {
-                break; // Failed to seek — can't loop
+                break; // Failed to seek, can't loop
             }
             // After seeking, try to read again
             continue;
@@ -391,61 +370,21 @@ void audioThread(void *arg) {
     return;
 }
 
-typedef struct {
-    OggOpusFile* file;
-    bool quit;
-} AudioThreadData;
+void playSFX(int16_t* samples, u32 nsamples) {
+    ndspChnReset(1);
+    ndspChnSetRate(1, SAMPLE_RATE);
+    ndspChnSetFormat(1, NDSP_FORMAT_STEREO_PCM16);
+    ndspChnWaveBufClear(1);
 
-void audioThreadFunc(void* arg) {
-    AudioThreadData* data = (AudioThreadData*)arg;
+    ndspWaveBuf waveBuf;
+    memset(&waveBuf, 0, sizeof(waveBuf));
+    waveBuf.data_pcm16 = samples;
+    waveBuf.nsamples = nsamples;
+    waveBuf.looping = false;
+    waveBuf.status = NDSP_WBUF_DONE;
 
-    ndspChnReset(0);
-    ndspChnSetRate(0, 48000);
-    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
-    ndspSetCallback(audioCallback, NULL);
-
-    for (int i = 0; i < 2; i++) {
-        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
-        waveBufs[i].status = NDSP_WBUF_DONE;
-    }
-
-    while (!data->quit) {
-        for (int i = 0; i < 2; i++) {
-            if (waveBufs[i].status == NDSP_WBUF_DONE) {
-                if (!fillBufferNoLoop(data->file, &waveBufs[i])) {
-                    data->quit = true;
-                    break;
-                }
-            }
-        }
-        svcSleepThread(1000000L);
-    }
-
-    op_free(data->file);
-    linearFree(audioBuffer);
-    svcExitThread();
-}
-
-bool playsound = true;
-
-Thread playSound(const char* path) {
-    if (playsound) {
-        int err;
-        OggOpusFile* file = op_open_file(path, &err);
-        if (!file) return NULL;
-
-        audioBuffer = (int16_t*)linearAlloc(WAVEBUF_SIZE * 2);
-        if (!audioBuffer) { op_free(file); return NULL; }
-
-        AudioThreadData* data = (AudioThreadData*)malloc(sizeof(AudioThreadData));
-        data->file = file;
-        data->quit = false;
-
-        Thread thread = threadCreate(audioThreadFunc, data, 0x10000, 0x1F, -2, true);
-        return thread; // Returns NULL on failure
-    }
-
-    return NULL;
+    DSP_FlushDataCache(samples, nsamples * 4);
+    ndspChnWaveBufAdd(1, &waveBuf);
 }
 
 
@@ -465,14 +404,17 @@ bool isSpriteTapped(C2D_Sprite* sprite, float scaleX, float scaleY) {
     if (!wasTouched && isTouched) {
         touchPosition touch;
         hidTouchRead(&touch);
+        
         float w = sprite->image.subtex->width * scaleX;
         float h = sprite->image.subtex->height * scaleY;
-        float x = sprite->params.pos.x;
-        float y = sprite->params.pos.y;
-        float left = x - w, right = x + w;
-        float top = y - h, bottom = y + h;
+        
+        float left = sprite->params.pos.x;
+        float right = sprite->params.pos.x + w;
+        float top = sprite->params.pos.y;
+        float bottom = sprite->params.pos.y + h;
 
-        if (touch.px >= left && touch.px <= right && touch.py >= top && touch.py <= bottom) {
+        if (touch.px >= left && touch.px <= right && 
+            touch.py >= top && touch.py <= bottom) {
             wasTouched = true;
             return true;
         }
@@ -527,45 +469,63 @@ void show_error(const char* errtext) {
 
 /*
 
-    readFileToBuffer()
-    Author: Virtualle
-    Note: Pretty basic, just read a file to a buffer
+
+    Append Room
+    Coded by: Virtualle
+    Note: Appends a room to the room list.
+
 
 */
 
-char* readFileToBuffer(const char* filePath, u32* outSize) {
-    Handle file;
-    u64 fileSize = 0;
-    char* buffer = NULL;
+typedef struct {
+    char username[30];
+    char message[300];
+} History;
 
-    // Open file
-    Result res = FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filePath), FS_OPEN_READ, 0);   
-    if (R_FAILED(res)) return NULL;
+typedef struct {
+    char name[30];
+    char description[200];
+    History msgs[50];
+    int msgCount;
+    int curScroll;
+} RoomList;
 
-    // Get file size
-    FSFILE_GetSize(file, &fileSize);
-    if (fileSize == 0) {
-        FSFILE_Close(file);
-        return NULL;
+RoomList rooms[100];
+int roomCount = 0;
+
+void append_room(char* name, char* desc) {
+    if (roomCount < 100) {
+        strcpy(rooms[roomCount].name, name);
+        strcpy(rooms[roomCount].description, desc);
+        roomCount++;
     }
+}
 
-    // Allocate buffer (+1 for null terminator)
-    buffer = (char*)malloc(fileSize + 1);
-    if (!buffer) {
-        FSFILE_Close(file);
-        return NULL;
+RoomList* getRoom(char* name) {
+    for (int i = 0; i < roomCount; i++) {
+        if (!strcmp(rooms[i].name, name)) {
+            return &rooms[i];
+        }
     }
+    return NULL;
+}
 
-    // Read file
-    u32 bytesRead;
-    FSFILE_Read(file, &bytesRead, 0, buffer, fileSize);
-    FSFILE_Close(file);
-
-    // Null-terminate
-    buffer[bytesRead] = '\0';
-    if (outSize) *outSize = bytesRead;
-
-    return buffer;
+bool append_message(char* username, char* message, char* room) {
+    RoomList* roomptr = getRoom(room);
+    if (roomptr->msgCount > 48) {
+        memset(roomptr->msgs, 0, sizeof(roomptr->msgs));
+        roomptr->msgCount = 0;
+        roomptr->curScroll = 0;
+    }
+    if (roomptr != NULL) {
+        strcpy(roomptr->msgs[roomptr->msgCount].username, username);
+        strcpy(roomptr->msgs[roomptr->msgCount].message, message);
+        roomptr->msgCount++;
+        roomptr->curScroll += 55;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 /*
@@ -588,117 +548,34 @@ bool WriteToFile(char* path, char* text) {
     return true;
 }
 
-/*
+char* readFileToBuffer(const char* filePath, u32* outSize) {
+    Handle file;
+    u64 fileSize = 0;
+    char* buffer = NULL;
 
-    createDirectoryRecursive()
-    Author: Virtualle
-    Note: I uh kinda forget but it creates a directory and it does it well so whatever
+    Result res = FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, filePath), FS_OPEN_READ, 0);   
+    if (R_FAILED(res)) return NULL;
 
-*/
-
-void createDirectoryRecursive(const char* path) {
-    char temp[256];
-    snprintf(temp, sizeof(temp), "%s", path);
-    char* p = temp;
-    while (*p) {
-        if (*p == '/') {
-            *p = '\0';
-            if (temp[0]) mkdir(temp, 0777);
-            *p = '/';
-        }
-        p++;
-    }
-    if (temp[0]) mkdir(temp, 0777);
-}
-
-static u32 next_pow2(u32 n) {
-    if (n == 0) return 64;
-    n--;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    n++;
-    return (n < 64) ? 64 : (n > 1024) ? 1024 : n;
-}
-
-// Helper: Clamp to range
-static u32 clamp(u32 n, u32 lower, u32 upper) {
-    if (n < lower) return lower;
-    if (n > upper) return upper;
-    return n;
-}
-
-int pngToSprite(C2D_Sprite* sprite, const char* filepath) {
-    FILE* file = fopen(filepath, "rb");
-    if (!file) return -1;
-    
-    fseek(file, 0, SEEK_END);
-    size_t size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    u8* png_data = malloc(size);
-    fread(png_data, 1, size, file);
-    fclose(file);
-
-    unsigned char* rgba_data = NULL;
-    unsigned width, height;
-    u32 error = lodepng_decode32(&rgba_data, &width, &height, png_data, size);
-    free(png_data);
-    if (error) return -2;
-
-    u32* pixels = (u32*)rgba_data;
-    for (unsigned i = 0; i < width * height; i++) {
-        u32 px = pixels[i];
-        pixels[i] = ((px >> 24) & 0xFF) | ((px >> 8) & 0xFF00) | ((px << 8) & 0xFF0000) | ((px << 24) & 0xFF000000);
+    FSFILE_GetSize(file, &fileSize);
+    if (fileSize == 0) {
+        FSFILE_Close(file);
+        return NULL;
     }
 
-    C3D_Tex* tex = linearAlloc(sizeof(C3D_Tex));
-    *tex = (C3D_Tex){0}; // Zero-init
-
-    // Set padded dimensions (power of two)
-    tex->width  = clamp(next_pow2(width), 64, 1024);
-    tex->height = clamp(next_pow2(height), 64, 1024);
-
-    if (!C3D_TexInit(tex, tex->width, tex->height, GPU_RGBA8)) {
-        linearFree(tex);
-        linearFree(rgba_data);
-        return -3;
+    buffer = (char*)malloc(fileSize + 1);
+    if (!buffer) {
+        FSFILE_Close(file);
+        return NULL;
     }
 
-    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_NEAREST);
+    u32 bytesRead;
+    FSFILE_Read(file, &bytesRead, 0, buffer, fileSize);
+    FSFILE_Close(file);
 
-    memset(tex->data, 0, tex->width * tex->height * 4);
+    buffer[bytesRead] = '\0';
+    if (outSize) *outSize = bytesRead;
 
-    for (unsigned i = 0; i < height; i++) {
-        for (unsigned j = 0; j < width; j++) {
-            u32 src_idx = i * width + j;
-            u32 abgr_px = pixels[src_idx];
-
-            u32 dst_offset = ((((j >> 3) * (tex->width >> 3) + (i >> 3)) << 6) +
-                             ((i & 1) | ((j & 1) << 1) | ((i & 2) << 1) |
-                              ((j & 2) << 2) | ((i & 4) << 2) | ((j & 4) << 3)));
-
-            ((u32*)tex->data)[dst_offset] = abgr_px;
-        }
-    }
-
-    linearFree(rgba_data);
-
-    Tex3DS_SubTexture* subtex = malloc(sizeof(Tex3DS_SubTexture));
-    subtex->width  = (float)width;
-    subtex->height = (float)height;
-    subtex->left   = 0.0f;
-    subtex->top    = 1.0f;
-    subtex->right  = (float)width / tex->width;
-    subtex->bottom = 1.0f - (float)height / tex->height;
-
-    C2D_Image image = {.tex = tex, .subtex = subtex};
-    C2D_SpriteFromImage(sprite, image);
-    C2D_SpriteSetCenter(sprite, 0.5f, 0.5f);
-
-    return 1;
+    return buffer;
 }
 
 C2D_SpriteSheet spriteSheet;
@@ -706,15 +583,18 @@ C2D_Sprite button;
 C2D_Sprite button2;
 C2D_Sprite button3;
 C2D_Sprite button4;
-C2D_Sprite tab1;
-C2D_Sprite tab2;
-C2D_Sprite tab3;
-C2D_Sprite tab4;
-C2D_Sprite tab5;
-C2D_Sprite bottombg;
-C2D_Sprite pfp;
-C2D_Sprite writetab;
-C2D_Sprite drawtab;
+C2D_Sprite loading;
+C2D_Sprite loading1;
+C2D_Sprite loading2;
+C2D_Sprite loading3;
+C2D_Sprite loading4;
+C2D_Sprite loading5;
+C2D_Sprite chattab;
+C2D_Sprite infotab;
+C2D_Sprite roomstab;
+C2D_Sprite themestab;
+C2D_Sprite settingstab;
+C2D_Sprite bg;
 
 int scene = 1;
 
@@ -723,107 +603,20 @@ char username[21];
 
 bool showpassword = false;
 
-char buftext[256];
+char buftext[1024];
 
 bool showpassjustpressed = false;
 
 bool outdated = false;
 
-float selected_scale = 0.4f;
+bool touched = false;
+int lastTouchX = 0;
+float velX = 0;
 
-bool savePNG(u16* data, const char* path, u8 (*penSizes)[256]) {
-    int w = 256, h = 256;
-    unsigned char* image = malloc(w * h * 4);
-    if (!image) return false;
-
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            u32 color = 0xFFFFFFFF;
-            if (penSizes[x][y] > 0) color = 0xFF000000;
-
-            int idx = (y * w + x) * 4;
-            image[idx + 0] = (color >> 16) & 0xFF;
-            image[idx + 1] = (color >> 8) & 0xFF;
-            image[idx + 2] = (color >> 0) & 0xFF;
-            image[idx + 3] = (color >> 24) & 0xFF;
-        }
-    }
-
-    unsigned error = lodepng_encode32_file(path, image, w, h);
-    free(image);
-    return error == 0;
-}
-
-bool drawtabselected = false;
-bool writetabselected = true;
-
-/*
-
-
-    Append Chat Message
-    Coded by: Virtualle
-    Extra credit: Funtum
-    Note: This is based off of Funtum's version, even named the same, but it is heavily different.
-
-
-*/
-
-float chatscroll = 60.0f;
-
-char chat[3000] = "-chat-\n";
-
-void append_message(char* msg, char* usr, char* png_location) {
-    if (msgCount < 50) {
-        strcpy(chatHistory[msgCount].username, usr);
-        strcpy(chatHistory[msgCount].message, msg);
-        pngToSprite(&chatHistory[msgCount].profile, "/3ds/Unitendo/mii.png");
-        if (png_location) {
-            chatHistory[msgCount].spritevalid = true;
-            pngToSprite(&chatHistory[msgCount].sprite, png_location);
-        }
-        msgCount++;
-        chatscroll -= 120;
-    } else {
-        memset(&chatHistory, 0, sizeof(chatHistory));
-        msgCount = 0;
-        chatscroll = 60.0f;
-    }
-}
-
-char* encode(const char* filename) {
-    FILE* file = fopen(filename, "rb");
-    if (!file) return NULL;
-
-    fseek(file, 0, SEEK_END);
-    long input_len = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    unsigned char* buffer = (unsigned char*)malloc(input_len);
-    if (!buffer) {
-        fclose(file);
-        return NULL;
-    }
-    fread(buffer, 1, input_len, file);
-    fclose(file);
-
-    int output_len = (input_len * 4 / 3) + 4;
-    char* output = (char*)malloc(output_len);
-    if (!output) {
-        free(buffer);
-        return NULL;
-    }
-
-    base64_encodestate state;
-    base64_init_encodestate(&state);
-    int len = base64_encode_block(buffer, input_len, output, &state);
-    len += base64_encode_blockend(output + len, &state);
-    output[len] = '\0';
-
-    free(buffer);
-    return output;
-}
-
-char msg[365];
+int selectingRoom = 0;
+int selectedRoom = 0;
+float chatscroll = 0.0f;
+char msg[300];
 
 
 
@@ -844,105 +637,24 @@ int main() {
     C2D_Prepare();
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-    httpcInit(4 * 1024 * 1024);
+    httpcInit(1 * 1024 * 1024);
 
-    spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
-    C2D_SpriteFromImage(&button, C2D_SpriteSheetGetImage(spriteSheet, 0));
-    C2D_SpriteFromImage(&button2, C2D_SpriteSheetGetImage(spriteSheet, 0));
-    C2D_SpriteFromImage(&button3, C2D_SpriteSheetGetImage(spriteSheet, 0));
-    C2D_SpriteFromImage(&button4, C2D_SpriteSheetGetImage(spriteSheet, 0));
-    C2D_SpriteFromImage(&tab1, C2D_SpriteSheetGetImage(spriteSheet, 1));
-    C2D_SpriteFromImage(&tab2, C2D_SpriteSheetGetImage(spriteSheet, 2));
-    C2D_SpriteFromImage(&tab3, C2D_SpriteSheetGetImage(spriteSheet, 3));
-    C2D_SpriteFromImage(&tab4, C2D_SpriteSheetGetImage(spriteSheet, 4));
-    C2D_SpriteFromImage(&tab5, C2D_SpriteSheetGetImage(spriteSheet, 5));
-    C2D_SpriteFromImage(&bottombg, C2D_SpriteSheetGetImage(spriteSheet, 6));
-    C2D_SpriteFromImage(&writetab, C2D_SpriteSheetGetImage(spriteSheet, 1));
-    C2D_SpriteFromImage(&drawtab, C2D_SpriteSheetGetImage(spriteSheet, 4));
-//    C2D_SpriteFromImage(&pfp, C2D_SpriteSheetGetImage(spriteSheet, 7));
-
-    download("http://104.236.25.60:3073/mii/Cooleli912", "/3ds/Unitendo/mii.png");
-
-
-    u8 (*penSizes)[256] = linearAlloc(256 * 256 * sizeof(u8));
-    if (!penSizes) return -1;
-    memset(penSizes, 0, 256 * 256 * sizeof(u8));
-
-    u16* pixelBuffer = linearAlloc(256 * 256 * 2);
-    memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
-
-    touchPosition touch, prevTouch = {-1, -1};
-    int penSize = 4;
-
-    char PNIDName[35] = "hackertron";
-
-    mcuHwcInit();
-
-    InfoLedPattern pattern = {
-    .delay = 0x10,           // 1 second delay
-    .smoothing = 0x00,       // Instant change
-    .loopDelay = 0xFF,       // Play once
-    .blinkSpeed = 0x00,
-    .redPattern = 0xFF,      // Full red
-    .greenPattern = 0xFF,    // Full green
-    .bluePattern = 0xFF      // No blue
-    };
-
-    Result resulter = MCUHWC_SetInfoLedPattern(&pattern);   
-    char resutldbug[20];
-    sprintf(resutldbug, "%d", resulter);
-//    append_message(resutldbug, "LED");
-
-// burger
-
-
+	spriteSheet = C2D_SpriteSheetLoad("romfs:/gfx/sprites.t3x");
+    C2D_SpriteFromImage(&loading, C2D_SpriteSheetGetImage(spriteSheet, 0));
+    C2D_SpriteFromImage(&bg, C2D_SpriteSheetGetImage(spriteSheet, 6));
 /*
-
-MiiSelectorConf conf;
-MiiSelectorReturn returnbuf;
-
-miiSelectorInit(&conf);
-miiSelectorSetOptions(&conf, MIISELECTOR_CANCEL | MIISELECTOR_GUESTS | MIISELECTOR_TOP);
-miiSelectorSetTitle(&conf, "Choose a Mii");
-miiSelectorSetInitialIndex(&conf, 0);
-miiSelectorWhitelistUserMii(&conf, 0); // Allow first user Mii
-
-miiSelectorLaunch(&conf, &returnbuf);
-
-MiiData mii;
-
-char base64_data[128];
-
-if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
-    base64_encodestate enc_state;
-    base64_init_encodestate(&enc_state);
-    int len = base64_encode_block((char*)&returnbuf.mii, 74, base64_data, &enc_state);
-    len += base64_encode_blockend(base64_data + len, &enc_state);
-    base64_data[len] = '\0';
-
-    char url[400];
-    sprintf(url, "http://104.236.25.60/mii/%s", base64_data);
-    download(url, "/3ds/Unitendo/mii.png");
-}
-    */
-    
-    download("http://104.236.25.60:3073/mii/hackertron", "/3ds/Unitendo/mii.png");
-
-    int tabselected = 1;
-
-    http_post("http://104.236.25.60:3073/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
+    http_post("http://104.236.25.60:6767/api/signup", "virtualle|4urger|");
+    http_post("http://104.236.25.60:6767/api/login", "virtualle|4urger|");
     sprintf(buftext, "%s", buf);
-    if (strstr(buftext, "OUTDATED") != 0) {
-        outdated = true;
+    if (strstr(buftext, "ERR_WRONG_PASS") != 0) {
+        show_error("Wrong password.\nTry again.");
+    } else {
+        char* intactToken = strtok(buftext, "|");
+        sprintf(token, "%s", intactToken);
     }
-    if (strstr(buftext, "BANNED") != 0) {
-        show_error("You're banned.\nWe aren't accepting appeals at this time.");
-        return 0;
-    }
+*/
 
-    OggOpusFile *file = op_open_file("romfs:/Project_4.opus", NULL);
-
-    sbuffer = C2D_TextBufNew(4096);
+	sbuffer = C2D_TextBufNew(4096);
 
     u32 *soc_buffer = memalign(0x1000, 0x100000);
     if (!soc_buffer) {
@@ -960,7 +672,7 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    server.sin_port = htons(4041);
+    server.sin_port = htons(3033);
     server.sin_addr.s_addr = inet_addr("104.236.25.60");
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
@@ -970,132 +682,48 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
-    u32 textcolor = C2D_Color32(0, 0, 0, 200);
-    u32 themecolor = C2D_Color32(255, 255, 255, 255);
-    u32 textcolorb = C2D_Color32(0, 0, 0, 200);
-    u32 themecolorb = C2D_Color32(255, 255, 255, 255);
-    u32 logocolor = C2D_Color32(0, 0, 0, 200);
+    ndspInit();
+    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+    ndspChnSetRate(0, SAMPLE_RATE);
+    ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
+    ndspSetCallback(audioCallback, NULL);
 
-    //for "normal" (reversi = 0)
-    u32 colA = C2D_Color32(0, 0, 0, 200); //top text
-    u32 colB = C2D_Color32(255, 255, 255, 255); //top theme
-    u32 colC = C2D_Color32(0, 0, 0, 200); //bottom text
-    u32 colD = C2D_Color32(255, 255, 255, 255); //bottom theme
-    u32 colE = C2D_Color32(0, 0, 100, 200); //logo text
+    int animCounter = 0;
+    int loadingFrame = 0;
+    int loadingTimer = 0;
 
-    //reqs for holographic
-    accelVector myGyro;
-    myGyro.x = 0;
-    myGyro.y = 0;
-    myGyro.z = 0;
-    int inte = 10; //less is more!
-    HIDUSER_EnableAccelerometer();
+    int scene = 1;
 
-    int darkmode = 0; /* keeping the name just in case but most of these are probably too bright lol */
-    int themecount = 20; // just in case--it's actually one less
-    int reversi = 0; // ask and you shall receive
-    char currenttheme[30] = "none"; /* it'd be nice if it could tell you which one you're using... */
-    char thememode[16] = "none";
+    char* newsHeader = "Failed to load news header";
+    char* newsDesc = "Failed to load news description";
+/*
+    OggOpusFile *file = op_open_file("romfs:/music/settings.opus", NULL);
 
-    int rulesvisible = 0;
-    bool chatlock = false; //true to scroll rules, false to scroll chat
-    float rulescroll = 0.0f; //chatscroll for da rules
-    
-    int silly = 0; //used for the silly rules check
-
-
-    // whatcha running
-    cfguInit();
-    u8 model = 7;
-    CFGU_GetSystemModel(&model);
-    // You're not going anywhere buddy
-
-    char detectsystem[10];
-    switch (model) {
-    case 0:
-        strcpy(detectsystem, "3DS");
-        break;
-    case 1:
-        strcpy(detectsystem, "3DSXL");
-        break;
-    case 2:
-        strcpy(detectsystem, "N3DS");
-        break;
-    case 3:
-        strcpy(detectsystem, "2DS");
-        break;
-    case 4:
-        strcpy(detectsystem, "N3DSXL");
-        break;
-    case 5:
-        strcpy(detectsystem, "N2DSXL");
-        break;
-    default:
-        strcpy(detectsystem, "evil mode");
-        break;
+    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
+    memset(waveBufs, 0, sizeof(waveBufs));
+    for (int i = 0; i < 2; i++) {
+        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
+        waveBufs[i].status = NDSP_WBUF_DONE;
     }
 
-    int myscroll = 0;
+    LightEvent_Init(&audioEvent, RESET_ONESHOT);
+    Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x18, 1, false);
 
+    fillBuffer(file, &waveBufs[0]);
+    fillBuffer(file, &waveBufs[1]);
 
+*/
 
-    u8 pixels[320][120] = {0};
-
-
-
-    // ^
-
-    /*
-    
-        This is what will run every frame. You have to be careful with things that MUST only be triggered once here.
-    
-    */
-
-    char *logincreds = readFileToBuffer("/3ds/Unitendo/login.txt", NULL);
-    if (logincreds) {
-        char signuppostbody[400] = {0};
-        char* usrname = strtok(logincreds, ",");
-        char* pass = strtok(NULL, ",");
-        sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
-        http_post("http://104.236.25.60:3073/api", signuppostbody);
-        scene = 10;
-    }
-
-    frdInit(false);
-    FRD_Login(0);
-
-    Presence presence = {0};
-    presence.joinAvailabilityFlag = 1;
-    FriendGameModeDescription desc = {0};
-    utf8_to_utf16(desc, (uint8_t*)"Aurorachat: general-chat", strlen("Aurorachat: general-chat"));
+    Result kys = 0;
 
     char buffer[1024] = {0};
 
-    append_message("Welcome to aurorachat!", "LOCAL", NULL);
+    
 
-    pngToSprite(&pfp, "/3ds/Unitendo/mii.png");
+	while (aptMainLoop())
+	{
+		hidScanInput();
 
-    pngToSprite(&chatHistory[0].sprite, "/3ds/Unitendo/mii.png");
-
-    size_t sizerer;
-
-    while (aptMainLoop()) {
-        /*
-        
-            Scan inputs, allows the program to detect button presses.
-        
-        */
-        hidScanInput();
-
-        FRD_UpdateMyPresence(&presence, &desc);
-
-        /*
-        u8 *batterylevel = 0;
-        Result burgierier = MCUHWC_GetBatteryLevel(batterylevel);
-
-        char batterydisplay[20];
-        sprintf(batterydisplay, "Battery: %d%%", batterylevel);
-        */
 
 
 
@@ -1107,616 +735,100 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
         timeout.tv_sec = 0;
         timeout.tv_usec = 10000; // 10ms
 
-        
         ssize_t len = recv(sock, buffer, 1024-1, 0);
         if (len > 0) {
-                if (len > 0 & (len < 1024)) {
-                    char* cmd = strtok(buffer, "|");
-                    char* usr = strtok(NULL, "|");
-                    char* msg = strtok(NULL, "|");
-                    char* pnidnameusr = strtok(NULL, "|");
-                    char* imgdata = "http://104.236.25.60:3073/cdn/image.png";
+            if (len > 0 && (len < 1024)) {
+                buffer[1023] = '\0';
+                char* username = strtok(buffer, "|");
+                char* message = strtok(NULL, "|");
+                char* room = strtok(NULL, "|");
 
-
-
-                    if (strcmp(cmd, "CHAT") == 0) {
-                        char miidownloader[200];
-                        sprintf(miidownloader, "http://104.236.25.60:3073/mii/%s", pnidnameusr);
-                        if (!download(miidownloader, "/3ds/Unitendo/mii.png")) {
-                            download("http://104.236.25.60:3073/mii/hackertron", "/3ds/Unitendo/mii.png");
-                        }
-                        if (!imgdata) {
-                            append_message(msg, usr, NULL);
-                        }
-                        if (imgdata) {
-                            createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
-                            download(imgdata, "/3ds/Unitendo/aurorachat/temp/temp.png");
-                            append_message(msg, usr, "/3ds/Unitendo/aurorachat/temp/temp.png");
-                        }
-                    }
+                if (username && message && room) {
+                    append_message(username, message, room);
                 }
+            }
         } else if (len == 0) {
-            append_message("Server cut off connection.", "LOCAL", NULL);
-} else {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        append_message("Server closed connection abruptly! Attempting to reconnect...", "LOCAL", NULL);
-        closesocket(sock);
-        int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        // placeholder
-    }
-
-    struct sockaddr_in server;
-    memset(&server, 0, sizeof(server));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(4041);
-    server.sin_addr.s_addr = inet_addr("104.236.25.60");
-
-    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
-        // placeholder
-    }
-
-    int flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-/*
-    char url[200];
-    sprintf(url, "https://mii-unsecure.ariankordi.net/miis/image.png?data=%s", mii);
-    download(url, "/3ds/Unitendo/mii.png");
-*/
-
-    http_post("http://104.236.25.60:3073/api", "{\"cmd\":\"CONNECT\", \"version\":\"0.5.0\"}");
-    sprintf(buftext, "%s", buf);
-    if (strstr(buftext, "OUTDATED") != 0) {
-        outdated = true;
-    }
-    if (strstr(buftext, "BANNED") != 0) {
-        show_error("You're banned.\nWe aren't accepting appeals at this time.");
-        return 0;
-    }
-
-    char *logincreds = readFileToBuffer("/3ds/Unitendo/login.txt", NULL);
-    if (logincreds) {
-        char signuppostbody[400] = {0};
-        char* usrname = strtok(logincreds, ",");
-        char* pass = strtok(NULL, ",");
-        sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", usrname, pass);
-        http_post("http://104.236.25.60:3073/api", signuppostbody);
-        scene = 10;
-    }
-
-    }
-}   
-
-        /* MORE! THEMES! NOW!
-        >NORMAL THEMES<
-        
-        0 - Basic Light
-        1 - Basic Dark
-        2 - HBChat Legacy
-
-        3 - Glacier Plus (formerly Ivory Plus)
-        4 - Velvet Plus
-        5 - Slate Plus
-        6 - Pearl Plus
-        7 - Emerald Plus
-
-        8 - Holographic
-
-        >REVERSI-APPLICABLE THEMES<
-
-        9 - Lemon Soda
-        10 - Cinnamon
-        11 - Tropical
-        12 - Glacier
-        13 - Eyestrain Deluxe
-
-        >USER-SUBMISSION THEMES<
-        14 - Bread Guy's Theme (Bread Guy)
-        15 - hacker torn tyehme. (cool guy)
-        16 - P3 Phosphor (waydoing)
-		17 - Slowpoke Pink (Slow)
-        18 - Sky (DJ)
-        19 - GB Green (Slow)
-        20 - Homebrew Blue (Slow)
-
-        + theme reversing with X cause you asked for it
-        */
-
-        if (hidKeysDown() & KEY_L) {
-            if (darkmode > 0) {
-                darkmode -= 1;
-            }
-            else {
-                darkmode = themecount;
-            }
-        } /* Cycle through themes, counting up */
-
-        if (hidKeysDown() & KEY_R) {
-            if (darkmode < themecount) {
-                darkmode += 1;
-            }
-            else {
-                darkmode = 0;
-            }
-        } /* Cycle through themes, counting down */
-
-        if (hidKeysDown() & KEY_X) {
-            //reversi = !reversi;
-            if (reversi < 3) {
-                reversi += 1;
-            }
-            else {
-                reversi = 0;
-            }
-        } /* it keeps updating so this is all i got */
-        // 0 = normal, 1 = reverse, 2 = top only, 3 = bottom only
-
-        if (darkmode == 0) {
-            colA = C2D_Color32(0, 0, 0, 200);
-            colB = C2D_Color32(255, 255, 255, 255);
-            colC = C2D_Color32(0, 0, 0, 200);
-            colD = C2D_Color32(255, 255, 255, 255);
-            colE = C2D_Color32(0, 0, 100, 200);
-            strcpy(currenttheme, "Basic Light");
-        } /* Basic Light */
-
-        if (darkmode == 1) {
-            colA = C2D_Color32(255, 255, 255, 200);
-            colB = C2D_Color32(0, 0, 0, 255);
-            colC = C2D_Color32(255, 255, 255, 200);
-            colD = C2D_Color32(0, 0, 0, 255);
-            colE = C2D_Color32(0, 0, 100, 200);
-            strcpy(currenttheme, "Basic Dark");
-        } /* Basic Dark */
-
-        if (darkmode == 2) {
-            colA = C2D_Color32(0, 0, 0, 200);
-            colB = C2D_Color32(0, 0, 255, 255);
-            colC = C2D_Color32(0, 0, 0, 200);
-            colD = C2D_Color32(0, 0, 255, 255);
-            colE = C2D_Color32(0, 0, 0, 255);
-            strcpy(currenttheme, "HBChat Legacy");
-        } /* HBChat Legacy */
-
-        if (darkmode == 3) {
-            colA = C2D_Color32(106, 142, 174, 200);
-            colB = C2D_Color32(209, 250, 255, 255);
-            colC = C2D_Color32(106, 142, 174, 200);
-            colD = C2D_Color32(209, 250, 255, 255);
-            colE = C2D_Color32(54, 38, 167, 200);
-            strcpy(currenttheme, "Glacier Plus");
-        } /* Glacier Plus */
-
-        if (darkmode == 4) {
-            colA = C2D_Color32(157, 99, 129, 200);
-            colB = C2D_Color32(28, 2, 33, 255);
-            colC = C2D_Color32(157, 99, 129, 200);
-            colD = C2D_Color32(28, 2, 33, 255);
-            colE = C2D_Color32(255, 234, 238, 200);
-            strcpy(currenttheme, "Velvet Plus");
-        } /* Velvet Plus */
-
-        if (darkmode == 5) {
-            colA = C2D_Color32(199, 255, 237, 200);
-            colB = C2D_Color32(89, 101, 111, 255);
-            colC = C2D_Color32(199, 255, 237, 200);
-            colD = C2D_Color32(89, 101, 111, 255);
-            colE = C2D_Color32(255, 159, 28, 200);
-            strcpy(currenttheme, "Slate Plus");
-        } /* Slate Plus */
-
-        if (darkmode == 6) {
-            colA = C2D_Color32(255, 56, 100, 200);
-            colB = C2D_Color32(245, 215, 217, 255);
-            colC = C2D_Color32(255, 56, 100, 200);
-            colD = C2D_Color32(245, 215, 217, 255);
-            colE = C2D_Color32(72, 172, 240, 200);
-            strcpy(currenttheme, "Pearl Plus");
-        } /* Pearl Plus */
-
-        if (darkmode == 7) {
-            colA = C2D_Color32(189, 228, 168, 200);
-            colB = C2D_Color32(15, 82, 87, 255);
-            colC = C2D_Color32(189, 228, 168, 200);
-            colD = C2D_Color32(15, 82, 87, 255);
-            colE = C2D_Color32(234, 53, 70, 200);
-            strcpy(currenttheme, "Emerald Plus");
-        } /* Emerald Plus */
-
-        if (darkmode == 8) {
-            hidAccelRead(&myGyro);
-
-            //with accel, base Y always comes up as -512, which makes this a silly green
-
-            int modR = (abs((myGyro.y) / inte) + abs(myGyro.z / inte));
-            int modG = (abs(myGyro.x / inte) + abs(myGyro.z / inte));
-            int modB = (abs(myGyro.x / inte) + abs((myGyro.y) / inte));
-
-            u8 holoR = (255 - modR); //x
-            u8 holoG = (255 - modG); //y
-            u8 holoB = (255 - modB); //z
-
-            colA = C2D_Color32(0, 0, 0, 200);
-            colB = C2D_Color32(holoR, holoG, holoB, 255);
-            colC = C2D_Color32(0, 0, 0, 200);
-            colD = C2D_Color32(holoR, holoG, holoB, 255);
-            colE = C2D_Color32(0, 0, 0, 200);
-            strcpy(currenttheme, "Holographic");
-        } /* Holographic */
-
-        if (darkmode == 9) {
-            colA = C2D_Color32(230, 57, 70, 200);
-            colB = C2D_Color32(254, 240, 204, 255);
-            colC = C2D_Color32(16, 255, 203, 200);
-            colD = C2D_Color32(40, 196, 200, 255);
-            colE = C2D_Color32(253, 26, 109, 200);
-            strcpy(currenttheme, "Lemon Soda");
-        } /* Lemon Soda */
-
-        if (darkmode == 10) {
-            colA = C2D_Color32(235, 212, 203, 200);
-            colB = C2D_Color32(182, 70, 95, 255);
-            colC = C2D_Color32(218, 159, 147, 200);
-            colD = C2D_Color32(137, 6, 32, 255);
-            colE = C2D_Color32(44, 7, 3, 200);
-            strcpy(currenttheme, "Cinnamon");
-        } /* Cinnamon */
-
-        if (darkmode == 11) {
-            colA = C2D_Color32(255, 217, 125, 200);
-            colB = C2D_Color32(255, 108, 74, 255);
-            colC = C2D_Color32(170, 246, 131, 200);
-            colD = C2D_Color32(59, 201, 123, 255);
-            colE = C2D_Color32(255, 255, 255, 200);
-            strcpy(currenttheme, "Tropical");
-        } /* Tropical */
-
-        if (darkmode == 12) {
-            colA = C2D_Color32(19, 64, 116, 200);
-            colB = C2D_Color32(238, 244, 237, 255);
-            colC = C2D_Color32(141, 169, 196, 200);
-            colD = C2D_Color32(11, 37, 69, 255);
-            colE = C2D_Color32(19, 49, 92, 200);
-            strcpy(currenttheme, "Iceberg");
-        } /* Iceberg */
-
-        if (darkmode == 13) {
-            colA = C2D_Color32(0, 255, 255, 200);
-            colB = C2D_Color32(255, 0, 0, 255);
-            colC = C2D_Color32(255, 0, 255, 200);
-            colD = C2D_Color32(0, 255, 0, 255);
-            colE = C2D_Color32(0, 0, 0, 200);
-            strcpy(currenttheme, "Eyestrain Deluxe");
-        } /* Eyestrain Deluxe */
-
-        // user reqs from here on out! thanks for the submissions!
-
-        if (darkmode == 14) {
-            colA = C2D_Color32(102, 216, 220, 200);
-            colB = C2D_Color32(14, 53, 73, 255);
-            colC = C2D_Color32(102, 216, 220, 200);
-            colD = C2D_Color32(14, 53, 73, 255);
-            colE = C2D_Color32(107, 214, 118, 200);
-            strcpy(currenttheme, "Bread Guy's Theme");
-        } /* Bread Guy's Theme */
-
-        if (darkmode == 15) {
-            colA = C2D_Color32(17, 255, 0, 200);
-            colB = C2D_Color32(0, 0, 0, 255);
-            colC = C2D_Color32(17, 255, 0, 200);
-            colD = C2D_Color32(0, 0, 0, 255);
-            colE = C2D_Color32(17, 255, 0, 200);
-            strcpy(currenttheme, "hacker torn tyehme.");
-        } /* hacker torn tyehme. */
-
-        if (darkmode == 16) {
-			colA = C2D_Color32(255, 176, 0, 255);
-			colB = C2D_Color32(28, 28, 28, 255);
-			colC = C2D_Color32(255, 176, 0, 255);
-			colD = C2D_Color32(28, 28, 28, 255);
-			colE = C2D_Color32(255, 176, 0, 255);
-			strcpy(currenttheme, "P3 Phosphor");
-		} /* P3 Phosphor */
-		
-		if (darkmode == 17) {
-            colA = C2D_Color32(9, 44, 84, 200);
-            colB = C2D_Color32(245, 120, 198, 255);
-            colC = C2D_Color32(9, 44, 84, 200);
-            colD = C2D_Color32(245, 120, 198, 255);
-            colE = C2D_Color32(255, 237, 167, 200);
-            strcpy(currenttheme, "Slowpoke Pink");
-        } /* Slowpoke Pink */
-
-        if (darkmode == 18) {
-            colA = C2D_Color32(241, 241, 241, 200);
-            colB = C2D_Color32(99, 183, 219, 255);
-            colC = C2D_Color32(241, 241, 241, 200);
-            colD = C2D_Color32(99, 183, 219, 255);
-            colE = C2D_Color32(192, 255, 255, 200);
-            strcpy(currenttheme, "Sky");
-        } /* Sky */
-
-        if (darkmode == 19) {
-            colA = C2D_Color32(32, 91, 92, 200);
-            colB = C2D_Color32(159, 228, 97, 255);
-            colC = C2D_Color32(159, 228, 97, 200);
-            colD = C2D_Color32(32, 91, 92, 255);
-            colE = C2D_Color32(89, 145, 50, 200);
-            strcpy(currenttheme, "GB Green");
-        } /* GB Green */
-
-        if (darkmode == 20) {
-            colA = C2D_Color32(203, 231, 255, 200);
-            colB = C2D_Color32(0, 132, 255, 255);
-            colC = C2D_Color32(255, 255, 255, 200);
-            colD = C2D_Color32(68, 175, 255, 255);
-            colE = C2D_Color32(98, 219, 252, 200);
-            strcpy(currenttheme, "Homebrew Blue");
-        } /* Homebrew Blue */
-
-        switch (reversi) {
-        case 0: //normal
-            textcolor = colA;
-            themecolor = colB;
-            textcolorb = colC;
-            themecolorb = colD;
-            logocolor = colE;
-            strcpy(thememode, "");
-            break;
-        case 1: //reverse
-            textcolor = colC;
-            themecolor = colD;
-            textcolorb = colA;
-            themecolorb = colB;
-            logocolor = colE;
-            strcpy(thememode, "Reverse");
-            break;
-        case 2: //top only
-            textcolor = colA;
-            themecolor = colB;
-            textcolorb = colA;
-            themecolorb = colB;
-            logocolor = colE;
-            strcpy(thememode, "Upper");
-            break;
-        case 3: //bottom only
-            textcolor = colC;
-            themecolor = colD;
-            textcolorb = colC;
-            themecolorb = colD;
-            logocolor = colE;
-            strcpy(thememode, "Lower");
-            break;
-        }
-
-        if (hidKeysDown() & KEY_Y) {
-            if (rulesvisible < 3) {
-                if (rulesvisible == 0) { //only roll for silly on the first press, not on subsequent ones
-                    silly = rand() % 10; // all odds must be in multiples of 10%
-                    chatlock = true; //stop the chat from scrolling while the rules are open
-                }
-                rulesvisible += 1;
-            }
-            else {
-                rulesvisible = 0;
-				chatlock = false;
-            }
-            rulescroll = 0;
-        } /* You wanna see the rules, huh? Huh? Punk? */ // moved to int so there can be rule pages
-
-        // ahhh
-
-
-        if (scene == 10) {
-            if (hidKeysDown() & KEY_A) {
-                createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
-                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-                char msg[356];
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 356); // made the username limit even longer because 21 ha ha funny
-                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Say something...");
-
-                swkbdInputText(&swkbd, msg, sizeof(msg));
-
-                char* drawingbase64 = encode("/3ds/Unitendo/aurorachat/temp/drawing.png");
-                char sender[6000];
-                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"imgdata\":\"%s\", \"pnid\":\"%s\"}", msg, username, password, detectsystem, drawingbase64, PNIDName);
-                http_post("http://104.236.25.60:3073/api", sender);
-                memset(penSizes, 0, 256 * 256 * sizeof(u8));
-                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
-        //        savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-
-                sprintf(buftext, "%s", buf);
-                if (strstr(buftext, "BANNED") != 0) {
-                    show_error("You've been banned.\nWe are not accepting appeals at this time.");
-                    return 0;
-                }
-                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-            }
-            if (hidKeysDown() & KEY_SELECT) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 35); // made the username limit even longer because 21 ha ha funny
-                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Enter a PNID...");
-
-                swkbdInputText(&swkbd, PNIDName, sizeof(PNIDName));
-            }
-            if (hidKeysDown() & KEY_ZL) {
-                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-            }
-            if (isSpriteTapped(&button, 0.4f, 0.4f) & (tabselected == 5)) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 35); // made the username limit even longer because 21 ha ha funny
-                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Enter a PNID...");
-
-                swkbdInputText(&swkbd, PNIDName, sizeof(PNIDName));
-            }
-        }
-
-
-
-
-
-        if (scene == 1) {
-            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
-                scene = 2;
-            }
-            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
-                scene = 3;
-            }
-        }
-
-        if (scene == 2) {
-            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21); // made the username limit even longer because 21 ha ha funny
-                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT); // i added a cancel button, yippe
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Enter a username...");
-
-                swkbdInputText(&swkbd, username, sizeof(username)); 
-            }
-
-            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21); // made the username limit even longer because 21 ha ha funny
-                swkbdSetFeatures(&swkbd, SWKBD_DEFAULT_QWERTY); // i added a cancel button, yippe
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0); // top ten stolen and EXPANDED from aurorachat
-                swkbdSetHintText(&swkbd, "Enter a password...");
-                if (password[0] != '\0') { // Not empty
-                    swkbdSetInitialText(&swkbd, password);
-                }
-                if (!showpassword) {
-                    swkbdSetPasswordMode(&swkbd, SWKBD_PASSWORD_HIDE_DELAY);
-                }
-
-
-                swkbdInputText(&swkbd, password, sizeof(password)); 
-            }
-            if (isSpriteTapped(&button3, 0.4f, 0.4f)) {
-                scene = 4;
-            }
-
-            if (hidKeysDown() & KEY_B) {
-                scene = 1;
-            }
-        }
-
-        if (scene == 4) {
-            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
-                if (!showpassjustpressed) {
-                    showpassword = !showpassword;
-                    showpassjustpressed = true;
-                }
-            } else {
-                showpassjustpressed = false;
-            }
-            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
-                char signuppostbody[128];
-                sprintf(signuppostbody, "{\"cmd\":\"MAKEACC\", \"username\":\"%s\", \"password\":\"%s\"}", username, password);
-                http_post("http://104.236.25.60:3073/api", signuppostbody);
-                sprintf(buftext, "%s", buf);
-                if (strstr(buftext, "USR_CREATED") != 0) {
-                    scene = 1;
-                }
-                if (strcmp(buftext, "(null)") == 0) {
-                    scene = 61;
-                    show_error("The API is experiencing issues.\nTry again later.");
-                }
-                if (strstr(buftext, "USR_IN_USE") != 0) {
-                    show_error("The username you created is already in use.\nPlease try again.");
-                    scene = 67;
-                }
-                if (strstr(buftext, "BANNED") != 0) {
-                    show_error("You've been banned.\nWe are not accepting appeals at this time.");
-                    return 0;
-                }
-                if (strstr(buftext, "ILLEGAL") != 0) {
-                    show_error("Your username contained illegal characters.\nRewrite your username.");
-                    scene = 2;
-                }
-            }
+            show_error("You've been disconnected.\n\nTry opening the app again.");
+            return -1;
+        } else {
+            // nothing
         }
 
         if (scene == 3) {
-
-            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
+            if (hidKeysDown() & KEY_A) {
                 SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21);
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 299);
                 swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
                 swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Enter your username...");
+                swkbdSetHintText(&swkbd, "Type a message...");
 
-                swkbdInputText(&swkbd, username, sizeof(username));
-            }
-
-            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 21);
-                swkbdSetFeatures(&swkbd, SWKBD_DEFAULT_QWERTY);
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Enter your password...");
-                if (password[0] != '\0') { // Not empty
-                    swkbdSetInitialText(&swkbd, password);
-                }
-                if (!showpassword) { // I implemented this but I refuse to use it because IM EVIL.
-                    swkbdSetPasswordMode(&swkbd, SWKBD_PASSWORD_HIDE_DELAY);
-                }
-
-
-                swkbdInputText(&swkbd, password, sizeof(password)); 
-            }
-            if (isSpriteTapped(&button3, 0.4f, 0.4f)) {
-                scene = 5;
-            }
-
-            if (hidKeysDown() & KEY_B) {
-                scene = 1;
+                swkbdInputText(&swkbd, msg, sizeof(msg));
+                /*
+                char* args[2] = {"http://104.236.25.60:6767/api/chat", sender};
+                Thread httpThread = threadCreate(httpPostThread, args, 0x4000, 0x30, -2, true);
+                */
+                char sender[400];
+                sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
+                http_post("http://104.236.25.60:6767/api/chat", sender);
             }
         }
 
         if (scene == 5) {
-            if (isSpriteTapped(&button, 0.4f, 0.4f)) {
-                if (!showpassjustpressed) {
-                    showpassword = !showpassword;
-                    showpassjustpressed = true;
+            if (hidKeysDown() & KEY_A) {
+                if (selectingRoom == 0) {
+                    SwkbdState swkbd;
+                    swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 20);
+                    swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                    swkbdSetHintText(&swkbd, "Enter a username...");
+                    if (username[0] != '\0') {
+                        swkbdSetInitialText(&swkbd, username);
+                    }
+
+
+                    swkbdInputText(&swkbd, username, sizeof(username));
                 }
-            } else {
-                showpassjustpressed = false;
+                if (selectingRoom == 1) {
+                    SwkbdState swkbd;
+                    swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 20);
+                    swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                    swkbdSetHintText(&swkbd, "Enter a password...");
+                    if (password[0] != '\0') {
+                        swkbdSetInitialText(&swkbd, password);
+                    }
+
+                    swkbdInputText(&swkbd, password, sizeof(password));
+                }
             }
-            if (isSpriteTapped(&button2, 0.4f, 0.4f)) {
-                char signuppostbody[128];
-                sprintf(signuppostbody, "{\"cmd\":\"LOGINACC\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"2DS\"}", username, password);
-                http_post("http://104.236.25.60:3073/api", signuppostbody);
-                sprintf(buftext, "%s", buf);
-                if (strstr(buftext, "LOGIN_OK") != 0) {
-                    scene = 10;
-                    sprintf(signuppostbody, "%s,%s", username, password);
-                    createDirectoryRecursive("/3ds/Unitendo");
-                    WriteToFile("/3ds/Unitendo/login.txt", signuppostbody);
+        }
+
+        if (scene == 6) {
+            if (hidKeysDown() & KEY_A) {
+                if (selectingRoom == 0) {
+                    SwkbdState swkbd;
+                    swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 20);
+                    swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                    swkbdSetHintText(&swkbd, "Enter a username...");
+                    if (username[0] != '\0') {
+                        swkbdSetInitialText(&swkbd, username);
+                    }
+
+
+                    swkbdInputText(&swkbd, username, sizeof(username));
                 }
-                if (strcmp(buftext, "(null)") == 0) {
-                    scene = 61;
-                    show_error("The API is experiencing issues.\nTry again later.");
-                }
-                if (strstr(buftext, "LOGIN_WRONG_PASS") != 0) {
-                    scene = 68;
-                    show_error("The password entered is invalid.\nPlease try again.");
-                }
-                if (strstr(buftext, "LOGIN_FAKE_ACC") != 0) {
-                    scene = 68;
-                    char coolthingmessageyknow[75];
-                    sprintf(coolthingmessageyknow, "The account %s does not exist. Did you make a typo?", username);
-                    show_error(coolthingmessageyknow);
-                }
-                if (strstr(buftext, "BANNED") != 0) {
-                    show_error("You've been banned.\nWe aren't accepting appeals at this time.");
-                    return 0;
+                if (selectingRoom == 1) {
+                    SwkbdState swkbd;
+                    swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 20);
+                    swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                    swkbdSetHintText(&swkbd, "Enter a password...");
+                    if (password[0] != '\0') {
+                        swkbdSetInitialText(&swkbd, password);
+                    }
+
+                    swkbdInputText(&swkbd, password, sizeof(password));
                 }
             }
         }
@@ -1728,669 +840,323 @@ if (!returnbuf.no_mii_selected && miiSelectorChecksumIsValid(&returnbuf)) {
 
 
 
-        /*
+		C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+        C2D_TargetClear(top, C2D_Color32(255, 255, 255, 255));
+        C2D_TargetClear(bottom, C2D_Color32(0, 0, 0, 255));
+
+		C2D_SceneBegin(top);
+
+        if (scene == 1) {
+
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
         
-            Begin the frame, nothing actually starts drawing when you do this, it is still required.
-        
-        */
-        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            DrawText("aurorachat", 129, 10, 0, 1.2f, 1.2f, C2D_Color32(215, 228, 255, 255), false);
 
-
-        /*
-        
-            Clear the screens with a color. Think of it like sliding a blank piece of paper on top of one with drawings on it.
-        
-        */
-        C2D_TargetClear(top, themecolor);
-        C2D_TargetClear(bottom, themecolorb);
-
-        C2D_SceneBegin(top);
-   //     DrawText(batterydisplay, 220.0f, 3.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 255, 255), true);
-
-
-        if (scene == 10) {
-         //   DrawText(chat, 10.0f, chatscroll, 0, 0.5f, 0.5f, textcolor, true);
-            float y = chatscroll;
-            for (int i = 0; i < msgCount; i++) {
-                C2D_DrawRectangle(10.0f, y + 5.0f, 0.0f, 300.0f, 150.0f, textcolorb, textcolorb, textcolorb, textcolorb);
-                C2D_DrawRectSolid(10.0f + 2.8f, y + 7.0f, 0.0f, 300.0f - 5.0f, 150.0f - 5.0f, themecolor);
-                C2D_SpriteSetPos(&chatHistory[i].profile, 30.0f, y + 20.0f);
-                C2D_SpriteSetScale(&chatHistory[i].profile, 0.5f, -0.5f);
-                C2D_SpriteSetRotationDegrees(&chatHistory[i].profile, 90);
-                C2D_DrawSprite(&chatHistory[i].profile);
-                DrawText(chatHistory[i].username, 50.0f, y + 10, 0, 0.7f, 0.7f, textcolor, true);
-                DrawText(chatHistory[i].message, 50.0f, y + 30, 0, 0.5f, 0.5f, textcolor, true);
-                if (chatHistory[i].spritevalid == true) {
-                    C2D_SpriteSetScale(&chatHistory[i].sprite, 0.4f, -0.4f);
-                    C2D_SpriteSetRotationDegrees(&chatHistory[i].sprite, 90);
-                    C2D_SpriteSetPos(&chatHistory[i].sprite, 80.0f, y + 100);
-                    C2D_DrawSprite(&chatHistory[i].sprite);
-                }
-                y += 170;
-            }
 
             C2D_SceneBegin(bottom);
-            C2D_ImageTint bottombgtint;
-            C2D_AlphaImageTint(&bottombgtint, 0.3f);
-            C2D_SpriteSetScale(&bottombg, 0.5f, 0.5f);
-            C2D_DrawSpriteTinted(&bottombg, &bottombgtint);
-            if (rulesvisible == 0) {
+            C2D_DrawSprite(&bg);
+            C2D_SpriteSetPos(&loading, 132, 95);
+            C2D_DrawSprite(&loading);
 
-
-                if (isSpriteTapped(&tab1, 0.3f, 0.2f)) {
-                    selected_scale = 0.2f;
-                    tabselected = 1;
-                }
-                if (isSpriteTapped(&tab2, 0.3f, 0.2f)) {
-                    selected_scale = 0.2f;
-                    tabselected = 2;
-                }
-                if (isSpriteTapped(&tab3, 0.3f, 0.2f)) {
-                    selected_scale = 0.2f;
-                    tabselected = 3;
-                }
-                if (isSpriteTapped(&tab4, 0.3f, 0.2f)) {
-                    selected_scale = 0.2f;
-                    tabselected = 4;
-                }
-                if (isSpriteTapped(&tab5, 0.3f, 0.2f)) {
-                    selected_scale = 0.2f;
-                    tabselected = 5;
-                }
-
-                if (isSpriteTapped(&drawtab, 0.2f, 0.2f)) {
-                    selected_scale = 0.1f;
-                    drawtabselected = true;
-                    writetabselected = false;
-                } 
-
-                if (isSpriteTapped(&writetab, 0.2f, 0.2f)) {
-                    selected_scale = 0.1f;
-                    drawtabselected = false;
-                    writetabselected = true;
-                } 
-
-
-
-
-
-                C2D_SpriteSetPos(&tab1, 0.0f, 10.0f);
-                C2D_SpriteSetScale(&tab1, 0.3f, 0.3f);
-                C2D_SpriteSetScale(&tab2, 0.3f, 0.3f);
-                C2D_SpriteSetScale(&tab3, 0.3f, 0.3f);
-                C2D_SpriteSetScale(&tab4, 0.3f, 0.3f);
-                C2D_SpriteSetScale(&tab5, 0.3f, 0.3f);
-                C2D_SpriteSetPos(&tab2, 0.0f, 50.0f);
-                C2D_SpriteSetPos(&tab3, 0.0f, 90.0f);
-                C2D_SpriteSetPos(&tab4, 0.0f, 130.0f);
-                C2D_SpriteSetPos(&tab5, 0.0f, 170.0f);
-                C2D_ImageTint unselectedtint;
-                C2D_AlphaImageTint(&unselectedtint, 0.4f);
-                switch (tabselected) {
-                    case 1:
-                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
-                        C2D_SpriteSetScale(&tab1, selected_scale, selected_scale);
-                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
-                        C2D_DrawSprite(&tab1);
-
-                        C2D_SpriteSetScale(&button3, 0.3f, 0.3f);
-                        C2D_SpriteSetPos(&button3, 190.0f, 200.0f);
-                        C2D_DrawSprite(&button3);
-
-                        DrawText("Send", 230.0f, 203.0f, 0, 0.7f, 0.7f, textcolor, true);
-
-                        if (isSpriteTapped(&button3, 0.15f, 0.1f)) {
-                createDirectoryRecursive("/3ds/Unitendo/aurorachat/temp");
-                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-
-                char* drawingbase64 = encode("/3ds/Unitendo/aurorachat/temp/drawing.png");
-                char sender[6000];
-                sprintf(sender, "{\"cmd\":\"CHAT\", \"content\":\"%s\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"imgdata\":\"%s\", \"pnid\":\"%s\"}", msg, username, password, detectsystem, drawingbase64, PNIDName);
-                http_post("http://104.236.25.60:3073/api", sender);
-                memset(penSizes, 0, 256 * 256 * sizeof(u8));
-                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
-        //        savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
-
-                sprintf(buftext, "%s", buf);
-                if (strstr(buftext, "BANNED") != 0) {
-                    show_error("You've been banned.\nWe are not accepting appeals at this time.");
-                    return 0;
-                }
-                savePNG(pixelBuffer, "/3ds/Unitendo/aurorachat/temp/drawing.png", penSizes);
+            if (animCounter > 4 && loadingFrame < 5) {
+                animCounter = 0;
+                loadingFrame++;
+                C2D_SpriteFromImage(&loading, C2D_SpriteSheetGetImage(spriteSheet, loadingFrame));
+            } else if (loadingFrame >= 4) {
+                loadingFrame = 0;
+                C2D_SpriteFromImage(&loading, C2D_SpriteSheetGetImage(spriteSheet, loadingFrame));
             }
 
-                        C2D_SpriteSetPos(&drawtab, 100.0f, 50.0f);
-
-                        if (writetabselected) {
-                            C2D_SpriteSetScale(&writetab, selected_scale, selected_scale);
-                            C2D_SpriteSetScale(&drawtab, 0.2f, 0.2f);
-                        }
-
-                        if (drawtabselected) {
-                            C2D_SpriteSetScale(&drawtab, selected_scale, selected_scale);
-                            C2D_SpriteSetScale(&writetab, 0.2f, 0.2f);
-                        }
-                        C2D_SpriteSetPos(&writetab, 200.0f, 50.0f);
-                        C2D_DrawSprite(&drawtab);
-                        C2D_DrawSprite(&writetab);
-
-                        DrawText("Users Online: ERR", 105.0f, 0.0f, 0, 0.5f, 0.5f, textcolor, true);
-
-
-                        if (drawtabselected) {
-
-          //                  if (hidKeysDown() & KEY_ZR) {
-             //                   char thingyesyesthingmhm[600]
-             //                   sprintf(thingyesyesthingmhm, "{\"cmd\":\"SENDDRAWING\", \"username\":\"%s\", \"password\":\"%s\", \"platform\":\"%s\", \"data\":\"%s\"}", );
-             //                   http_post("");
-              //              }
-
-
-                if (hidKeysHeld() & KEY_TOUCH) {
-                hidTouchRead(&touch);
-                int x = touch.px;
-                int y = touch.py - 60;
-                int px = prevTouch.px;
-                int py = prevTouch.py - 60;
-
-                if (prevTouch.px != -1 && 
-                    px >= 0 && px < 256 && 
-                    py >= 0 && py < 256 && 
-                    x >= 0 && x < 256 && 
-                    y >= 0 && y < 256) {
-
-                    int dx = abs(x - px), sx = px < x ? 1 : -1;
-                    int dy = abs(y - py), sy = py < y ? 1 : -1;
-                    int err = (dx > dy ? dx : -dy) / 2;
-                    while (px != x || py != y) {
-                        int e2 = err;
-                        if (e2 > -dx) { err -= dy; px += sx; }
-                        if (e2 < dy) { err += dx; py += sy; }
-                        if (px >= 0 && px < 256 && py >= 0 && py < 256) {
-                            penSizes[px][py] = penSize;
-                            pixelBuffer[py * 256 + px] = 0x0000;
-                        }
-                    }
-                }
-
-                if (x >= 0 && x < 256 && y >= 0 && y < 256) {
-                    penSizes[x][y] = penSize;
-                    pixelBuffer[y * 256 + x] = 0x0000;
-                }
-                prevTouch = touch;
-            } else {
-                prevTouch.px = prevTouch.py = -1;
-            }
-
-            for (int y = 0; y < 256; y++) {
-                for (int x = 0; x < 256; x++) {
-                    if (penSizes[x][y] > 0) {
-                        int size = penSizes[x][y];
-                        C2D_DrawRectSolid(x, y + 60, 0.5f, size, size, C2D_Color32(0, 0, 0, 255));
+            if (loadingTimer >= 300) {
+                loadingTimer = 0;
+                scene = 4;
+                if (http_post("http://104.236.25.60:6767/api/rooms", "{\"cmd\":\"CONNECT\", \"version\":\"6.0\"}") == 0) {
+                    sprintf(buftext, "%s", buf);
+                    char* roomcountertext = strtok(buftext, "|");
+                    int roomsToAdd = atoi(roomcountertext);
+                    for (int i = 0; i < roomsToAdd; i++) {
+                        char* roomName = strtok(NULL, "|");
+                        append_room(roomName, "i forgot");
+                        append_message("System", "Welcome!", rooms[i].name);
                     }
                 }
             }
 
-            C2D_SpriteSetScale(&button2, 0.3f, 0.3f);
-            C2D_SpriteSetPos(&button2, 190.0f, 10.0f);
-            C2D_DrawSprite(&button2);
-            DrawText("Clear", 229.0f, 13.0f, 0, 0.7f, 0.7f, textcolor, true);
 
-            if (isSpriteTapped(&button2, 0.3f, 0.3f)) {
-                memset(penSizes, 0, 256 * 256 * sizeof(u8));
-                memset(pixelBuffer, 0xFFFF, 256 * 256 * 2);
-            }
+            loadingTimer++;
+            animCounter++;
         }
-
-
-                    if (writetabselected) {
-                        C2D_DrawRectangle(60.0f, y + 5.0f, 0.0f, 230.0f, 40.0f, textcolorb, textcolorb, textcolorb, textcolorb);
-                        C2D_DrawRectSolid(60.0f + 2.8f, y + 7.0f, 0.0f, 230.0f - 5.0f, 40.0f - 5.0f, themecolor);
-                    }
-
-                        break;
-                    case 2:
-                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
-                        C2D_SpriteSetScale(&tab2, selected_scale, selected_scale);
-                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
-                        C2D_DrawSprite(&tab2);
-
-                        DrawText("Aurorachat", 220.0f, 5.0f, 0, 0.7f, 0.7f, logocolor, true);
-                        DrawText("ver. 0.5.0", 220.0f, 20.0f, 0, 0.5f, 0.5f, logocolor, true);
-                        DrawText("Programmed by Virtualle and at_real", 50.0f, 40.0f, 0, 0.5f, 0.5f, textcolor, true);
-                        DrawText("Graphics by Hugh and Bread Guy", 60.0f, 65.0f, 0, 0.5f, 0.5f, textcolor, true);
-                        DrawText("Press Y to see the rules", 75.0f, 200.0f, 0, 0.5f, 0.5f, textcolor, true);
-                        DrawText("Codename: Quality Controlled", 60.0f, 80.0f, 0, 0.5f, 0.5f, textcolor, true);
-                        break;
-                    case 3:
-                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
-                        C2D_SpriteSetScale(&tab3, selected_scale, selected_scale);
-                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
-                        C2D_DrawSprite(&tab3);
-                        break;
-                    case 4:
-                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
-                        C2D_SpriteSetScale(&tab4, selected_scale, selected_scale);
-                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab5, &unselectedtint);
-                        C2D_DrawSprite(&tab4);
-                        break;
-                    case 5:
-                        selected_scale = selected_scale * 0.9f + 0.4f * 0.1f;
-                        C2D_SpriteSetScale(&tab5, selected_scale, selected_scale);
-                        C2D_DrawSpriteTinted(&tab1, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab2, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab3, &unselectedtint);
-                        C2D_DrawSpriteTinted(&tab4, &unselectedtint);
-                        C2D_DrawSprite(&tab5);
-
-                        C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-                        C2D_SpriteSetPos(&button, 80.0f, 150.0f);
-                        C2D_DrawSprite(&button);
-
-                        DrawText("Set Mii PNID", 120.0f, 170.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 255), true);
-
-                        break;
-                }
-
-
-
-
-                /*
-                char themealert[40];
-                sprintf(themealert, "Current Theme:\n%s\n%s", currenttheme, thememode);
-                DrawText(themealert, 100.0f, 200.0f, 0, 0.5f, 0.5f, textcolorb, true);
-                */
-            }
-
-            
-
-
-
-
-            if (rulesvisible == 1) { //rules here
-                if (silly > 1) { //as in, values of 0, 1, 2, or 3 will trigger the silly rules
-                    DrawText("1. No racist, sexist, homophobic, or other", 10.0f, (30.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("prejudiced language or behavior, whether it's", 10.0f, (40.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("aimed at another user or not.", 10.0f, (50.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("2. No asking for or sharing personal info of", 10.0f, (80.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("yourself or anyone else. This includes name,", 10.0f, (90.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("age, location, phone number, email address,", 10.0f, (100.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("or any other personally identifiable", 10.0f, (110.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("information. Doxxing (or the threat of doing so)", 10.0f, (120.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("is grounds for a ban.", 10.0f, (130.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("3. No sexual or overly violent behavior or", 10.0f, (160.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("language, including threats of violence or", 10.0f, (170.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("harm of ANY kind. This includes threats or", 10.0f, (180.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("discussion of harming yourself.", 10.0f, (190.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("4. No political discussion. Usernames of", 10.0f, (220.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("political figures are allowed (with some", 10.0f, (230.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("exceptions), but any language that could", 10.0f, (240.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("incite arguments may get you banned.", 10.0f, (250.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("5. No impersonation of developers, moder-", 10.0f, (280.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("ators, admin, or any other Aurorachat staff.", 10.0f, (290.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("Additionally, ANY impersonation for the sake", 10.0f, (300.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("of harrassing another user is not allowed.", 10.0f, (310.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("6. No discussion of piracy, including the", 10.0f, (340.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("sharing of services designed for piracy", 10.0f, (350.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("or encouraging others to pirate media.", 10.0f, (360.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("7. No spamming.", 10.0f, (390.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("8. No hunting.", 10.0f, (420.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("9. No ban evading.", 10.0f, (450.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("10. Be excellent to each other. Act", 10.0f, (480.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("respectfully towards other chatters,", 10.0f, (490.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("and don't harass or bully others.", 10.0f, (500.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    }
-                else {
-                    DrawText("1. No saying oatmeal", 10.0f, (30.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("2. Eat burger or else", 10.0f, (45.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("2. No numbers containing 6 or 7", 10.0f, (60.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("3. 100% accurate grammar", 10.0f, (75.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("4. Crow like a rooster when you log in", 10.0f, (90.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("5. Ganondorf Suavemente gif", 10.0f, (105.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("6. no more mr nice guy", 10.0f, (120.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("7. no hackertron", 10.0f, (135.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("8. eat burger", 10.0f, (150.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("9. Pigs must fly", 10.0f, (165.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("10. No more fortnite", 10.0f, (180.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("11. No battery", 10.0f, (195.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("12. No cats allowed", 10.0f, (210.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("13. No dogs allowed either", 10.0f, (225.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("Alright if I was an animal what animal do you", 10.0f, (240.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("think I would be? SERIOUS ANSWERS ONLY.", 10.0f, (250.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("A rooster. A rat. A rat. A rat. A rat. You’d", 10.0f, (260.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("be a rat. Jerma you’re a rat. You’d be a rat.", 10.0f, (270.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("I think you’d be a rat. I think I’d be a wolf.", 10.0f, (280.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("I think so too. I would be a wolf lion hybrid", 10.0f, (290.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("mix. King of the Junjile— Junjile, but still", 10.0f, (300.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("social and with it and ferocious.", 10.0f, (310.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("Ban evaders will be executed.", 10.0f, (325.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                    DrawText("THANKS FOR READING THE SILLY RULES!", 10.0f, (500.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                }
-                C2D_DrawRectSolid(0.0f, 0.0f, 0, 320.0f, 30.0f, themecolor);
-                DrawText(": Next Page | , : Scroll Rules", 10.0f, 10.0f, 0, 0.5f, 0.5f, textcolor, true);
-            }
-
-            if (rulesvisible == 2) { // FAQ here
-                DrawText("This is the FAQ--before you ask a question,", 10.0f, (30.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("make sure it's not already listed here!", 10.0f, (40.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("What is this?", 10.0f, (70.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Aurorachat is a chatting application for", 20.0f, (80.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("3DS, Wii, and Wii U.", 20.0f, (90.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Why do some users have {Discord} next to", 10.0f, (120.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("their name?", 10.0f, (130.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("We've got a Discord server with a bot that", 20.0f, (140.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("relays messages between Aurorachat and a", 20.0f, (150.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("dedicated channel. Anyone can join--we've", 20.0f, (160.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("provided a link below:", 20.0f, (170.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("discord.gg/dCSgz7KERv", 20.0f, (180.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("What qualifies as \"personally identifiable", 10.0f, (210.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("information\"?", 10.0f, (220.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("While the examples listed in rule 2 should", 20.0f, (230.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("NEVER be shared online, it's up to the user", 20.0f, (240.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("what they choose to share. Asking for", 20.0f, (250.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("gender and friend codes has historically", 20.0f, (260.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("been permitted, but if someone chooses not", 20.0f, (270.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("to share, DO NOT continue to ask or a", 20.0f, (280.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("moderator may step in to warn you.", 20.0f, (290.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Is [this user] a mod?", 10.0f, (320.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Moderators are present both on the Discord", 20.0f, (330.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("side and the Aurorachat side. Below is a", 20.0f, (340.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("list of users with moderation power:", 20.0f, (350.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                //try to line these up a bit
-                DrawText("Discord:", 10.0f, (360.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("ashes_of_autumn_88546", 10.0f, (370.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("carpetofbluedeath", 10.0f, (380.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("cengoa", 10.0f, (390.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("claudiwolf2056", 10.0f, (400.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("coolguy_63868", 10.0f, (410.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("d3m0nk1ngp1cc0l0", 10.0f, (420.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("dj0194019049857", 10.0f, (430.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("ei_tii", 10.0f, (440.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("fwdrxyy_", 10.0f, (450.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("heytay8", 10.0f, (460.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("holden_mccormick", 10.0f, (470.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("itsfuntum", 10.0f, (480.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("itskal12", 10.0f, (490.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("kingmaw", 10.0f, (500.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("lmutt090", 10.0f, (510.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("orstando", 10.0f, (520.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("pie_300", 10.0f, (530.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("sertarulcelmagic", 10.0f, (540.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("themisterbread", 10.0f, (550.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("virtualleee", 10.0f, (560.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("virxti", 10.0f, (570.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("wildfire0196", 10.0f, (580.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                //wrap here
-                DrawText("Aurorachat:", 170.0f, (360.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("at", 170.0f, (370.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("DKPiccolo", 170.0f, (380.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Evil_bee12", 170.0f, (390.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("hackertron", 170.0f, (400.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("john", 170.0f, (410.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Kal", 170.0f, (420.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("orstando", 170.0f, (430.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-
-                DrawText("Seal", 170.0f, (440.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("sertarulcelmagic", 170.0f, (450.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Unitendo", 170.0f, (460.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("virt", 170.0f, (470.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("'virtualel premium'", 170.0f, (480.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("virtualle", 170.0f, (490.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Wildfire", 170.0f, (500.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("wildfire", 170.0f, (510.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                //and resume here
-                DrawText("Note: most users appear on both lists,", 20.0f, (590.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("but they're not lined up properly here.", 20.0f, (600.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Can I make my own theme?", 10.0f, (630.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Of course! at/ei_tii handles custom theme", 20.0f, (640.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("requests (and I'm online frequently!). A", 20.0f, (650.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("survey has been provided for you to", 20.0f, (660.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("submit original themes:", 20.0f, (670.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("https://forms.gle/XYoKe2NgHM1QH5y98", 20.0f, (680.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Why did I get banned?", 10.0f, (710.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("We try and clearly communicate with users", 20.0f, (720.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("when they're breaking our rules. If we", 20.0f, (730.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("have repeatedly asked you to stop, you", 20.0f, (740.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("will be banned, and we DO NOT accept ban", 20.0f, (750.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("appeals. Reentering chat to ask this", 20.0f, (760.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("question will result in a short response", 20.0f, (770.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("and another ban.", 20.0f, (780.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Are you going to add...", 10.0f, (810.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("Below is a non-exhaustive list of features", 20.0f, (820.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("we plan to add to Aurorachat. Our team is", 20.0f, (830.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("rather small--please be patient with us!", 20.0f, (840.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("- Several rooms/servers to chat in, as", 20.0f, (850.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("well as DMs", 20.0f, (860.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("- Image support", 20.0f, (870.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("- Voice chat support", 20.0f, (880.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("- BGM and sound effects", 20.0f, (890.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("- Moderation improvement (kicking, ban", 20.0f, (900.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("messages, timeoutting, public moder-", 20.0f, (910.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("ation, automatic unbans, \"admin swag\")", 20.0f, (920.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                C2D_DrawRectSolid(0.0f, 0.0f, 0, 320.0f, 30.0f, themecolor);
-                DrawText(": Next Page | , : Scroll Rules", 10.0f, 10.0f, 0, 0.5f, 0.5f, textcolor, true);
-            }
-
-            if (rulesvisible == 3) { // changelog here
-                DrawText("The changelog is a work in", 10.0f, (30.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("progress. Check back soon for", 10.0f, (40.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                DrawText("new features we've added!", 10.0f, (50.0f + rulescroll), 0, 0.5f, 0.5f, textcolorb, true);
-                C2D_DrawRectSolid(0.0f, 0.0f, 0, 320.0f, 30.0f, themecolor); // hashtag my rectsolid
-                DrawText(": Close Page | , : Scroll Rules", 10.0f, 10.0f, 0.0f, 0.5f, 0.5f, textcolor, true);
-            }
-
-            if (hidKeysHeld() & KEY_UP) {
-                if (!chatlock) {
-                    chatscroll += 5;
-                }
-                if (chatlock) {
-                    rulescroll += 5;
-                }
-            }
-            if (hidKeysHeld() & KEY_DOWN) {
-                if (!chatlock) {
-                    chatscroll -= 5;
-                }
-                if (chatlock) {
-                    rulescroll -= 5;
-                }
-            }
-        }
-
-        if (outdated) {
-            DrawText("Outdated version. Update in Universal-Updater", 0.0f, 225.0f, 0, 0.5f, 0.5f, textcolor, false);
-        }
-
-        
-
-
-
-
-
-
 
         C2D_SceneBegin(bottom);
 
-        if (scene == 1) {
-            C2D_SceneBegin(top);
-            DrawText("Sign Up or Sign In", 150.0f, 70.0f, 0, 0.5f, 0.5f, textcolor, true);
-            C2D_SceneBegin(bottom);
-            C2D_SpriteSetPos(&button, 75.0f, 50.0f);
-            C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-            C2D_DrawSprite(&button);
-            DrawText("Sign Up", 130.0f, 62.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button2, 75.0f, 130.0f);
-            C2D_SpriteSetScale(&button2, 0.4f, 0.4f);
-            C2D_DrawSprite(&button2);
-            DrawText("Sign In", 132.0f, 143.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-        }
-
         if (scene == 2) {
+
+            if (hidKeysUp() & KEY_DOWN) {
+                if (selectingRoom < roomCount - 1) {
+                    selectingRoom++;
+                }
+            }
+            if (hidKeysUp() & KEY_UP) {
+                if (selectingRoom > 0) {
+                    selectingRoom--;
+                }
+            }
+
             C2D_SceneBegin(top);
-            DrawText("Sign Up", 175.0f, 70.0f, 0, 0.5f, 0.5f, textcolor, true);
-            DrawText("Enter a username and password. (It cannot contain \\, /, or a space.)", 100.0f, 90.0f, 0, 0.5f, 0.5f, textcolor, true);
+
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
+        
+            DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Rooms", 158, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Move: ", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Select: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+
+
             C2D_SceneBegin(bottom);
-            C2D_SpriteSetPos(&button, 75.0f, 50.0f);
-            C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-            C2D_DrawSprite(&button);
-            DrawText("Username", 120.0f, 62.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button2, 75.0f, 130.0f);
-            C2D_SpriteSetScale(&button2, 0.4f, 0.4f);
-            C2D_DrawSprite(&button2);
-            DrawText("Password", 120.0f, 143.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button3, 165.0f, 190.0f);
-            C2D_SpriteSetScale(&button3, 0.4f, 0.4f);
-            C2D_DrawSprite(&button3);
-            DrawText("Continue", 210.0f, 205.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
+            C2D_DrawSprite(&bg);
+
+            for (int i = 0; i < roomCount; i++) {
+                if (selectingRoom == i) {
+                    C2D_DrawRectSolid(0, 26 * i, 0, 370, 26, C2D_Color32(0, 0, 0, 255));
+                }
+                DrawText(rooms[i].name, 10, 27 * i, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+                if (hidKeysDown() & KEY_A) {
+                    scene = 3;
+                    selectedRoom = selectingRoom;
+                }
+            }
+
         }
 
         if (scene == 3) {
+
+            if (hidKeysHeld() & KEY_DOWN) {
+                rooms[selectedRoom].curScroll += 4;
+            }
+            if (hidKeysHeld() & KEY_UP) {
+                rooms[selectedRoom].curScroll -= 4;
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 2;
+            }
+            /*
+            if (hidKeysDown() & KEY_Y) {
+                char sender[400];
+                sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
+                http_post("http://104.236.25.60:6767/api/chat", sender);
+            }
+            */
+
             C2D_SceneBegin(top);
-            DrawText("Sign In", 175.0f, 70.0f, 0, 0.5f, 0.5f, textcolor, true);
-            DrawText("Enter your username and password.", 90.0f, 90.0f, 0, 0.5f, 0.5f, textcolor, true);
+
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
+
+            float msgY = 40.0f - rooms[selectedRoom].curScroll;
+            for (int i = 0; i < rooms[selectedRoom].msgCount; i++) {
+                DrawText(rooms[selectedRoom].msgs[i].username, 105, msgY, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), true);
+                DrawText(rooms[selectedRoom].msgs[i].message, 110, msgY + 20, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), true);
+                msgY += 60;
+            }
+        
+            DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Move: ", 5, 180, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Leave: B", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Send a message: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+
+
             C2D_SceneBegin(bottom);
-            C2D_SpriteSetPos(&button, 75.0f, 50.0f);
-            C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-            C2D_DrawSprite(&button);
-            DrawText("Username", 120.0f, 62.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button2, 75.0f, 130.0f);
-            C2D_SpriteSetScale(&button2, 0.4f, 0.4f);
-            C2D_DrawSprite(&button2);
-            DrawText("Password", 120.0f, 143.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button3, 165.0f, 190.0f);
-            C2D_SpriteSetScale(&button3, 0.4f, 0.4f);
-            C2D_DrawSprite(&button3);
-            DrawText("Continue", 210.0f, 205.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
+            C2D_DrawSprite(&bg);
+            DrawText(rooms[selectedRoom].name, 10, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+
+            DrawText("Press A to type a message...", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 160), false);
+
         }
 
         if (scene == 4) {
+
+            if (hidKeysUp() & KEY_DOWN) {
+                if (selectingRoom < 1) {
+                    selectingRoom++;
+                }
+            }
+            if (hidKeysUp() & KEY_UP) {
+                if (selectingRoom > 0) {
+                    selectingRoom--;
+                }
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 2;
+            }
+
             C2D_SceneBegin(top);
-            DrawText("Confirm", 175.0f, 70.0f, 0, 0.5f, 0.5f, textcolor, true);
-            char confirmation[256];
-            if (showpassword) {
-                sprintf(confirmation, "Username: %s\nPassword: %s", username, password);
-            }
-            if (!showpassword) {
-                sprintf(confirmation, "Username: %s\nPassword: (hidden)", username);
-            }
-            DrawText(confirmation, 140.0f, 90.0f, 0, 0.5f, 0.5f, textcolor, true);
+
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
+        
+            DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Account Setup", 110, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Move: ", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Select: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+
+
             C2D_SceneBegin(bottom);
-            C2D_SpriteSetPos(&button2, 75.0f, 50.0f);
-            C2D_SpriteSetScale(&button2, 0.4f, 0.4f);
-            C2D_DrawSprite(&button2);
-            DrawText("Register", 130.0f, 62.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button, 75.0f, 130.0f);
-            C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-            C2D_DrawSprite(&button);
-            DrawText("Show Password", 100.0f, 143.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
+            C2D_DrawSprite(&bg);
+
+            C2D_DrawRectSolid(0, 26 * selectingRoom, 0, 370, 26, C2D_Color32(0, 0, 0, 255));
+            DrawText("Create Account", 10, 27 * 0, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Log In", 10, 27 * 1, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+
+            if (hidKeysDown() & KEY_A) {
+                if (selectingRoom == 0) {
+                    selectingRoom = 0;
+                    scene = 5;
+                }
+                if (selectingRoom == 1) {
+                    selectingRoom = 0;
+                    scene = 6;
+                }
+            }
+
         }
 
         if (scene == 5) {
-            C2D_SceneBegin(top);
-            DrawText("Confirm", 175.0f, 70.0f, 0, 0.5f, 0.5f, textcolor, true);
-            char confirmation[256];
-            if (showpassword) {
-                sprintf(confirmation, "Username: %s\nPassword: %s", username, password);
+
+            if (hidKeysUp() & KEY_DOWN) {
+                if (selectingRoom < 2) {
+                    selectingRoom++;
+                }
             }
-            if (!showpassword) {
-                sprintf(confirmation, "Username: %s\nPassword: (hidden)", username);
+            if (hidKeysUp() & KEY_UP) {
+                if (selectingRoom > 0) {
+                    selectingRoom--;
+                }
             }
-            DrawText(confirmation, 140.0f, 90.0f, 0, 0.5f, 0.5f, textcolor, true);
-            C2D_SceneBegin(bottom);
-            C2D_SpriteSetPos(&button2, 75.0f, 50.0f);
-            C2D_SpriteSetScale(&button2, 0.4f, 0.4f);
-            C2D_DrawSprite(&button2);
-            DrawText("Log In", 130.0f, 62.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-            C2D_SpriteSetPos(&button, 75.0f, 130.0f);
-            C2D_SpriteSetScale(&button, 0.4f, 0.4f);
-            C2D_DrawSprite(&button);
-            DrawText("Show Password", 100.0f, 143.0f, 0, 0.6f, 0.6f, C2D_Color32(0, 0, 0, 100), true);
-        }
-
-
-        if (scene == 61) {
-            C2D_SceneBegin(top);
-            DrawText("API is down. Restart to try again.", 100.0f, 100.0f, 0, 0.5f, 0.5f, textcolor, false);
-            C2D_SceneBegin(bottom);
-        }
-
-        if (scene == 67) {
-            C2D_SceneBegin(top);
-            char debugger[280];
-            DrawText("Account already exists.", 140.0f, 100.0f, 0, 0.5f, 0.5f, textcolor, false);
-            DrawText("Press B to go back to the account screen.", 65.0f, 130.0f, 0, 0.5f, 0.5f, textcolor, true);
-            sprintf(debugger, "Debug: %s", buftext);
-            DrawText(debugger, 0.0f, 225.0f, 0, 0.5f, 0.5f, C2D_Color32(0, 0, 0, 100), false);
-
             if (hidKeysDown() & KEY_B) {
-                scene = 1;
+                scene = 4;
             }
-        }
 
-        if (scene == 68) {
             C2D_SceneBegin(top);
-            char debugger[280];
-            DrawText("Invalid Credentials", 140.0f, 100.0f, 0, 0.5f, 0.5f, textcolor, false);
-            DrawText("Press B to go back to the account screen.", 65.0f, 130.0f, 0, 0.5f, 0.5f, textcolor, true);
-            sprintf(debugger, "Debug: %s", buftext);
-            DrawText(debugger, 0.0f, 225.0f, 0, 0.5f, 0.5f, textcolor, false);
 
-            if (hidKeysDown() & KEY_B) {
-                scene = 1;
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
+        
+            DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Create Account", 110, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Move: ", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Select: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+
+
+            C2D_SceneBegin(bottom);
+            C2D_DrawSprite(&bg);
+
+            C2D_DrawRectSolid(0, 26 * selectingRoom, 0, 370, 26, C2D_Color32(0, 0, 0, 255));
+            DrawText("Enter a username", 10, 27 * 0, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Enter a password", 10, 27 * 1, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Create account", 10, 27 * 2, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+
+            if (hidKeysDown() & KEY_A) {
+                if (selectingRoom == 2) {
+                    selectingRoom = 0;
+                    char sender[300];
+                    sprintf(sender, "%s|%s|", username, password);
+                    http_post("http://104.236.25.60:6767/api/signup", sender);
+                    sprintf(buftext, "%s", buf);
+                    if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
+                        show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
+                    } else if (strstr(buftext, "ERR_USER_USED") != 0) {
+                        show_error("The username you chose is in use, please choose a different username.");
+                    } else {
+                        scene = 6;
+                    }
+                }
             }
+
         }
 
+        if (scene == 6) {
+
+            if (hidKeysUp() & KEY_DOWN) {
+                if (selectingRoom < 2) {
+                    selectingRoom++;
+                }
+            }
+            if (hidKeysUp() & KEY_UP) {
+                if (selectingRoom > 0) {
+                    selectingRoom--;
+                }
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 4;
+            }
+
+            C2D_SceneBegin(top);
+
+            C2D_SpriteSetScale(&bg, 2.5f, 1.0f);
+            C2D_DrawSprite(&bg);
+        
+            DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Logging In", 120, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Move: ", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            DrawText("Select: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+
+
+            C2D_SceneBegin(bottom);
+            C2D_DrawSprite(&bg);
+
+            C2D_DrawRectSolid(0, 26 * selectingRoom, 0, 370, 26, C2D_Color32(0, 0, 0, 255));
+            DrawText("Enter your username", 10, 27 * 0, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Enter your password", 10, 27 * 1, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+            DrawText("Log In", 10, 27 * 2, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+
+            if (hidKeysDown() & KEY_A) {
+                if (selectingRoom == 2) {
+                    selectingRoom = 0;
+                    char sender[300];
+                    sprintf(sender, "%s|%s|", username, password);
+                    http_post("http://104.236.25.60:6767/api/login", sender);
+                    sprintf(buftext, "%s", buf);
+                    if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
+                        show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
+                    } else if (strstr(buftext, "ERR_WRONG_PASS") != 0) {
+                        show_error("You entered the wrong password.\nTry again.");
+                    } else {
+                        char* intactToken = strtok(buftext, "|");
+                        sprintf(token, "%s", intactToken);
+                        scene = 2;
+                    }
+                }
+            }
+
+        }
+
+        
 
 
 
+
+        C3D_FrameEnd(0);
+
+        /*
         if (waveBufs[0].status == NDSP_WBUF_DONE) {
             if (!fillBuffer(file, &waveBufs[0]));
         }
         if (waveBufs[1].status == NDSP_WBUF_DONE) {
             if (!fillBuffer(file, &waveBufs[1]));
         }
+        */
+	}
 
-
-
-
-        C2D_Flush();
-        C3D_FrameEnd(0);
-
+    /*
+    if (file) {
+        op_free(file);
     }
-
-
-    quit = true;
-
-//    if (sfx1) linearFree(sfx1);
-
-    ndspSetCallback(NULL, NULL);
-    ndspExit();
-
+    */
+    socExit();
     httpcExit();
-
-    C2D_SpriteSheetFree(spriteSheet);
-
-    C2D_TextBufDelete(sbuffer);
-    C2D_Fini();
-    C3D_Fini();
-    cfguExit();
-
-    fsExit();
-    romfsExit();
-    gfxExit();
-    return 0;
-
-
+	gfxExit();
+	return 0;
 }
