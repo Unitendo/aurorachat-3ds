@@ -4,7 +4,7 @@ cencoder.c - c source to a base64 encoding algorithm implementation
 This is part of the libb64 project, and has been placed in the public domain.
 For details, see http://sourceforge.net/projects/libb64
 */
-
+/*
 #include "cencode.h"
 
 void base64_init_encodestate(base64_encodestate* state_in)
@@ -21,7 +21,7 @@ void base64_init_encodestate(base64_encodestate* state_in)
  *
  * Return encoded length, or 0 if encoded length + one additional null byte would exceed range of size_t
  */
-
+/*
 size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 {
 	size_t retmax = 0, retval;
@@ -30,7 +30,7 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 	/*
 	 * Check for integer overflow. Takes into consideration that gcc may optimise out
 	 * naive integer overflow checks based on the C standard saying the result of overflow is undefined.
-	 */
+	 
 	retmax = ~retmax;
 	retval = (plain_len + 2) / 3;
 	if(retval > retmax / 4)
@@ -38,7 +38,7 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 
 	retval *= 4;
 
-	/* Calculate number of linebreaks */
+	/* Calculate number of linebreaks 
 	if(retval && cpl)
 	{
 		size_t numbreaks;
@@ -47,7 +47,7 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 
 		retmax -= retval;
 
-		/* Make sure there's always room for one additional 0 byte on top of our return value */
+		/* Make sure there's always room for one additional 0 byte on top of our return value 
 		if(numbreaks < retmax)
 			return numbreaks + retval;
 		else
@@ -138,7 +138,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 			*codechar++ = base64_encode_value(result);
 		}
 	}
-	/* control should not reach here */
+	/* control should not reach here 
 	return (size_t) (codechar - code_out);
 }
 
@@ -171,3 +171,4 @@ size_t base64_encode_blockend(char* code_out, base64_encodestate* state_in)
 
 	return (size_t) (codechar - code_out);
 }
+*/
