@@ -1,2 +1,8 @@
 --atlas -f rgba8888 -z auto
-largebutton.png
+loading0.png
+loading1.png
+loading2.png
+loading3.png
+loading4.png
+loading5.png
+bg.png
