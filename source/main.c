@@ -707,6 +707,8 @@ int main() {
 
     char buffer[1024] = {0};
 
+    bool roomsAdded = false;
+
     
 
 	while (aptMainLoop())
@@ -732,7 +734,7 @@ int main() {
                 char* message = strtok(NULL, "|");
                 char* room = strtok(NULL, "|");
 
-                if (username && message && room) {
+                if (username && message && room && (roomsAdded == true)) {
                     append_message(username, message, room);
                 }
             }
@@ -759,6 +761,16 @@ int main() {
                 char sender[400];
                 sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
                 http_post("http://104.236.25.60:6767/api/chat", sender);
+                if (buf == NULL) {
+                    http_post("http://104.236.25.60:6767/api/chat", sender);
+                    if (buf == NULL) {
+                        http_post("http://104.236.25.60:6767/api/chat", sender);
+                        if (buf == NULL) {
+                            show_error("The server did not respond, it could be offline.\nTry again later.\n\nAurorachat will now close.");
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -870,6 +882,7 @@ int main() {
                         append_room(roomName, "i forgot");
                         append_message("System", "Welcome!", rooms[i].name);
                     }
+                    roomsAdded = true;
                 }
             }
 
@@ -1053,6 +1066,16 @@ int main() {
                     char sender[300];
                     sprintf(sender, "%s|%s|", username, password);
                     http_post("http://104.236.25.60:6767/api/signup", sender);
+                    if (buf == NULL) {
+                        http_post("http://104.236.25.60:6767/api/signup", sender);
+                        if (buf == NULL) {
+                            http_post("http://104.236.25.60:6767/api/signup", sender);
+                            if (buf == NULL) {
+                                show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
+                                break;
+                            }
+                        }
+                    }
                     sprintf(buftext, "%s", buf);
                     if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
                         show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
@@ -1107,6 +1130,16 @@ int main() {
                     char sender[300];
                     sprintf(sender, "%s|%s|", username, password);
                     http_post("http://104.236.25.60:6767/api/login", sender);
+                    if (buf == NULL) {
+                        http_post("http://104.236.25.60:6767/api/login", sender);
+                        if (buf == NULL) {
+                            http_post("http://104.236.25.60:6767/api/login", sender);
+                            if (buf == NULL) {
+                                show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
+                                break;
+                            }
+                        }
+                    }
                     sprintf(buftext, "%s", buf);
                     if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
                         show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
