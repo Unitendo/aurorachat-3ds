@@ -15,6 +15,11 @@
 #include <3ds/types.h>
 #include <3ds/services/cfgu.h>
 
+#define SERVER_URL "104.236.25.60"
+#define HTTP_PORT "6767"
+#define HTTP_OR_HTTPS "http"
+#define SOCKET_PORT "3033"
+
 char token[300];
 
 /*
@@ -264,6 +269,12 @@ Result http_post(const char* url, const char* data) {
     if (newurl) free(newurl);
     httpcCloseContext(&context);
     return ret;
+}
+
+Result postEndpoint(const char* endpoint, const char* data) { // wrapper for HTTP POSTing
+    char fullHttpUrl[75];
+    sprintf(fullHttpUrl, "%s://%s:%s/api/%s", HTTP_OR_HTTPS, SERVER_URL, HTTP_PORT, endpoint);
+    return http_post(fullHttpUrl, data);
 }
 
 void httpPostThread(void* arg) {
@@ -661,8 +672,8 @@ int main() {
     struct sockaddr_in server;
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    server.sin_port = htons(3033);
-    server.sin_addr.s_addr = inet_addr("104.236.25.60");
+    server.sin_port = htons(atoi(SOCKET_PORT));
+    server.sin_addr.s_addr = inet_addr(SERVER_URL);
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
         // placeholder
@@ -760,11 +771,11 @@ int main() {
                 */
                 char sender[400];
                 sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
-                http_post("http://104.236.25.60:6767/api/chat", sender);
+                postEndpoint("chat", sender);
                 if (buf == NULL) {
-                    http_post("http://104.236.25.60:6767/api/chat", sender);
+                    postEndpoint("chat", sender);
                     if (buf == NULL) {
-                        http_post("http://104.236.25.60:6767/api/chat", sender);
+                        postEndpoint("chat", sender);
                         if (buf == NULL) {
                             show_error("The server did not respond, it could be offline.\nTry again later.\n\nAurorachat will now close.");
                             break;
@@ -873,7 +884,7 @@ int main() {
             if (loadingTimer >= 300) {
                 loadingTimer = 0;
                 scene = 4;
-                if (http_post("http://104.236.25.60:6767/api/rooms", "{\"cmd\":\"CONNECT\", \"version\":\"6.0\"}") == 0) {
+                if (postEndpoint("rooms", "{\"cmd\":\"CONNECT\", \"version\":\"6.0\"}") == 0) {
                     sprintf(buftext, "%s", buf);
                     char* roomcountertext = strtok(buftext, "|");
                     int roomsToAdd = atoi(roomcountertext);
@@ -1065,11 +1076,11 @@ int main() {
                     selectingRoom = 0;
                     char sender[300];
                     sprintf(sender, "%s|%s|", username, password);
-                    http_post("http://104.236.25.60:6767/api/signup", sender);
+                    postEndpoint("signup", sender);
                     if (buf == NULL) {
-                        http_post("http://104.236.25.60:6767/api/signup", sender);
+                        postEndpoint("signup", sender);
                         if (buf == NULL) {
-                            http_post("http://104.236.25.60:6767/api/signup", sender);
+                            postEndpoint("signup", sender);
                             if (buf == NULL) {
                                 show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
                                 break;
@@ -1129,11 +1140,11 @@ int main() {
                     selectingRoom = 0;
                     char sender[300];
                     sprintf(sender, "%s|%s|", username, password);
-                    http_post("http://104.236.25.60:6767/api/login", sender);
+                    postEndpoint("login", sender);
                     if (buf == NULL) {
-                        http_post("http://104.236.25.60:6767/api/login", sender);
+                        postEndpoint("login", sender);
                         if (buf == NULL) {
-                            http_post("http://104.236.25.60:6767/api/login", sender);
+                            postEndpoint("login", sender);
                             if (buf == NULL) {
                                 show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
                                 break;
