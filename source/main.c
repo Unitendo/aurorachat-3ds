@@ -222,7 +222,7 @@ Result http_post(const char* url, const char* data) {
         }
 
         if (statuscode != 200) {
-            sprintf(errors, "HTTP Error: %x\n", statuscode);
+            sprintf(errors, "HTTP Error: %lx\n", statuscode);
             ret = httpcDownloadData(&context, buf + size, 0x1000, &readsize);
             size += readsize;
             if (ret == (s32)HTTPC_RESULTCODE_DOWNLOADPENDING) {
