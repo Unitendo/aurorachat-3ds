@@ -38,6 +38,25 @@ u32 bw;
 
 u8 *buf;
 
+static ndspWaveBuf waveBufA;
+static ndspWaveBuf waveBufB;
+static bool usingA = true;
+static u32 audioSize = 0;
+static int16_t* audioData = NULL;
+
+void audioInitBuffers() {
+    memset(&waveBufA, 0, sizeof(waveBufA));
+    memset(&waveBufB, 0, sizeof(waveBufB));
+
+    waveBufA.data_vaddr = audioData;
+    waveBufA.nsamples = audioSize / sizeof(int16_t);
+
+    waveBufB.data_vaddr = audioData;
+    waveBufB.nsamples = audioSize / sizeof(int16_t);
+
+    ndspChnWaveBufAdd(1, &waveBufA);
+}
+
 volatile bool downloadDone;
 
 typedef struct {
@@ -306,6 +325,30 @@ ndspWaveBuf waveBufs[2];
 int16_t *audioBuffer = NULL;
 LightEvent audioEvent;
 volatile bool quit = false;
+
+void loadAudio() {
+    FILE* f = fopen("romfs:/auc.wav", "rb");
+    if (!f) return;
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+
+    fseek(f, 44, SEEK_SET);
+
+    audioSize = size - 44;
+
+    audioData = (int16_t*)linearAlloc(audioSize);
+    if (!audioData) {
+        fclose(f);
+        return;
+    }
+
+    fread(audioData, 1, audioSize, f);
+    fclose(f);
+
+    DSP_FlushDataCache(audioData, audioSize);
+}
 
 bool fillBuffer(OggOpusFile *file, ndspWaveBuf *buf) {
     int total = 0;
@@ -630,6 +673,24 @@ float chatscroll = 0.0f;
 char msg[300];
 
 
+void audioLoopCheck() {
+    if (waveBufA.status == NDSP_WBUF_DONE || waveBufA.status == NDSP_WBUF_FREE) {
+
+        waveBufA.data_vaddr = audioData;
+        waveBufA.nsamples = audioSize / sizeof(int16_t);
+
+        ndspChnWaveBufAdd(1, &waveBufA);
+    }
+
+    if (waveBufB.status == NDSP_WBUF_DONE || waveBufB.status == NDSP_WBUF_FREE) {
+
+        waveBufB.data_vaddr = audioData;
+        waveBufB.nsamples = audioSize / sizeof(int16_t);
+
+        ndspChnWaveBufAdd(1, &waveBufB);
+    }
+}
+
 
 /*
 
@@ -688,11 +749,22 @@ int main() {
     ndspChnSetFormat(0, NDSP_FORMAT_STEREO_PCM16);
     ndspSetCallback(audioCallback, NULL);
 
+    // channel 1 for bgm
+    ndspChnReset(1);
+    ndspChnSetInterp(1, NDSP_INTERP_LINEAR);
+    ndspChnSetRate(1, 22050);
+    ndspChnSetFormat(1, NDSP_FORMAT_MONO_PCM16);
+
     int animCounter = 0;
     int loadingFrame = 0;
     int loadingTimer = 0;
 
     int scene = 1;
+
+    // load and play music
+    loadAudio();
+    ndspChnWaveBufAdd(1, &waveBufA);
+    ndspChnWaveBufAdd(1, &waveBufB);
 
     char* newsHeader = "Failed to load news header";
     char* newsDesc = "Failed to load news description";
@@ -727,7 +799,7 @@ int main() {
 		hidScanInput();
 
 
-
+        audioLoopCheck();
 
         fd_set readfds;
         struct timeval timeout;
