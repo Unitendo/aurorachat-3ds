@@ -326,8 +326,8 @@ int16_t *audioBuffer = NULL;
 LightEvent audioEvent;
 volatile bool quit = false;
 
-void loadAudio() {
-    FILE* f = fopen("romfs:/auc.wav", "rb");
+void loadAudio(const char* filename) {
+    FILE* f = fopen(filename, "rb");
     if (!f) return;
 
     fseek(f, 0, SEEK_END);
@@ -691,6 +691,16 @@ void audioLoopCheck() {
     }
 }
 
+// I'm working on this, I may use it in the future for culling
+bool onScreen(float objX, float objY) {
+    float minX = 200;
+    float maxX = 200;
+    float minY = rooms[selectedRoom].curScroll - 200;
+    float maxY = rooms[selectedRoom].curScroll + 200;
+
+    return (objX >= minX && objX <= maxX && objY >= minY && objY <= maxY);
+}
+
 
 /*
 
@@ -762,7 +772,7 @@ int main() {
     int scene = 1;
 
     // load and play music
-    loadAudio();
+    loadAudio("romfs:/auc.wav");
     ndspChnWaveBufAdd(1, &waveBufA);
     ndspChnWaveBufAdd(1, &waveBufB);
 
@@ -1044,7 +1054,7 @@ int main() {
             for (int i = 0; i < rooms[selectedRoom].msgCount; i++) {
                 DrawText(rooms[selectedRoom].msgs[i].username, 105, msgY, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), true);
                 DrawText(rooms[selectedRoom].msgs[i].message, 110, msgY + 20, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), true);
-                msgY += 60;
+                msgY += 60 + strlen(rooms[selectedRoom].msgs[i].message)/20 * 10;
             }
         
             DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
