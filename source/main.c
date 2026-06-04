@@ -1083,9 +1083,6 @@ int main() {
                     selectingRoom--;
                 }
             }
-            if (hidKeysDown() & KEY_B) {
-                scene = 2;
-            }
 
             C2D_SceneBegin(top);
 
