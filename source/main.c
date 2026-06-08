@@ -341,7 +341,7 @@ int loadAudio(const char* filename) {
     audioData = (int16_t*)linearAlloc(audioSize);
     if (!audioData) {
         fclose(f);
-        return;
+        return 0;
     }
 
     fread(audioData, 1, audioSize, f);
