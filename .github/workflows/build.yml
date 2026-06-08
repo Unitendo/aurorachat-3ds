@@ -28,13 +28,13 @@ jobs:
           make cia
 
       - name: Upload 3DSX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aurorachat 3DSX Automatic Build (could be unfinished!)
           path: ./aurorachat-3ds.3dsx
         
       - name: Upload CIA 
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aurorachat CIA Automatic Build (could be unfinished!)
           path: ./aurorachat.cia
