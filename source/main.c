@@ -326,9 +326,9 @@ int16_t *audioBuffer = NULL;
 LightEvent audioEvent;
 volatile bool quit = false;
 
-void loadAudio(const char* filename) {
+int loadAudio(const char* filename) {
     FILE* f = fopen(filename, "rb");
-    if (!f) return;
+    if (!f) return 1;
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
@@ -348,6 +348,7 @@ void loadAudio(const char* filename) {
     fclose(f);
 
     DSP_FlushDataCache(audioData, audioSize);
+	return 0;
 }
 
 bool fillBuffer(OggOpusFile *file, ndspWaveBuf *buf) {
@@ -772,7 +773,10 @@ int main() {
     int scene = 1;
 
     // load and play music
-    loadAudio("romfs:/auc.wav");
+    int sdmcFailed = loadAudio("sdmc:/auc.wav");
+	if (sdmcFailed = 1) { 
+		loadAudio("romfs:/auc.wav");
+	}
     ndspChnWaveBufAdd(1, &waveBufA);
     ndspChnWaveBufAdd(1, &waveBufB);
 
