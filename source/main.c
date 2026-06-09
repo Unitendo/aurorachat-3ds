@@ -774,7 +774,7 @@ int main() {
 
     // load and play music
     int sdmcFailed = loadAudio("sdmc:/auc.wav");
-	if (sdmcFailed = 1) { 
+	if (sdmcFailed == 1) { 
 		loadAudio("romfs:/auc.wav");
 	}
     ndspChnWaveBufAdd(1, &waveBufA);
