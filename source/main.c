@@ -1010,6 +1010,7 @@ int main() {
         
             DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
             DrawText("Rooms", 158, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
+			DrawText("Please note that some of your messages may not appear on your end. Rest assured, they're going through!", 158, 150, 0, 0.6f, 0.6f, C2D_Color32(215, 228, 255, 255), false);
             DrawText("Move: ", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
             DrawText("Select: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
 
