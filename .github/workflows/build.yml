@@ -48,15 +48,9 @@ jobs:
         with:
           dotnet-version: 8.0
           name: Discord Notification
-      - name: Send Discord Message
-        uses: ilshat/discord-message-action@v1.2.1
-        with:
-          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
-          title: "New build."
-          description: |
-            **Repository:** ${{ github.repository }}
-            **Commit Message:** ${{ github.event.head_commit.message }}
-            **Author:** ${{ github.actor }}
-            click the **latest one** in https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml 
-          color: 3066993 
-          url: "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+      - name: Quick Ping
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{"content": "New build. Click the top link at https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml . If you don't know how to do this, I will find you."}' \
+          ${{ secrets.DISCORD_WEBHOOK }}
