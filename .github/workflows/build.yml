@@ -47,10 +47,9 @@ jobs:
         uses: actions/setup-dotnet@v5.1.0
         with:
           dotnet-version: 8.0
-          name: Discord Notification
       - name: Quick Ping
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{"content": "New build. Click the top link at https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml . If you don't know how to do this, I will find you."}' \
+          -d '{"content": "New build. Click the top link at https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml . If you dont know how to do this, I will find you."}' \
           ${{ secrets.DISCORD_WEBHOOK }}
