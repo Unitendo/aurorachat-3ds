@@ -859,7 +859,7 @@ int main() {
     char* newsHeader = "Failed to load news header";
     char* newsDesc = "Failed to load news description";
 
-    Result kys = 0;
+
 
     char buffer[1024] = {0};
 
