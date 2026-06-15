@@ -290,6 +290,84 @@ Result http_post(const char* url, const char* data) {
     return ret;
 }
 
+Result http_get(const char* url) {
+    Result ret = 0;
+    httpcContext context;
+    char *newurl = NULL;
+    u32 statuscode = 0;
+    u32 contentsize = 0, readsize = 0, size = 0;
+    buf = NULL;
+    u8 *lastbuf = NULL;
+
+    do {
+        ret = httpcOpenContext(&context, HTTPC_METHOD_GET, url, 0);
+        if (ret != 0) break;
+
+        ret = httpcSetSSLOpt(&context, SSLCOPT_DisableVerify);
+        if (ret != 0) break;
+
+        ret = httpcSetKeepAlive(&context, HTTPC_KEEPALIVE_ENABLED);
+        if (ret != 0) break;
+
+        ret = httpcAddRequestHeaderField(&context, "User-Agent", "aurorachat For Nintendo 3DS Systems (v6.0)");
+        if (ret != 0) break;
+
+        ret = httpcAddRequestHeaderField(&context, "auth", token);
+        if (ret != 0) break;
+
+        ret = httpcBeginRequest(&context);
+        if (ret != 0) break;
+
+        ret = httpcGetResponseStatusCodeTimeout(&context, &statuscode, 670 * 1000 * 1000);
+        if (ret != 0) break;
+
+        if ((statuscode >= 301 && statuscode <= 303) || (statuscode >= 307 && statuscode <= 308)) {
+            if (newurl == NULL) newurl = malloc(0x1000);
+            if (newurl == NULL) { ret = -1; break; }
+
+            ret = httpcGetResponseHeader(&context, "Location", newurl, 0x1000);
+            url = newurl;
+            httpcCloseContext(&context);
+            continue;
+        }
+
+        if (statuscode != 200) {
+            ret = -2;
+            break;
+        }
+
+        ret = httpcGetDownloadSizeState(&context, NULL, &contentsize);
+        if (ret != 0) break;
+
+        buf = (u8*)malloc(0x1000);
+        if (buf == NULL) { ret = -1; break; }
+
+        do {
+            ret = httpcDownloadData(&context, buf + size, 0x1000, &readsize);
+            size += readsize;
+            if (ret == (s32)HTTPC_RESULTCODE_DOWNLOADPENDING) {
+                lastbuf = buf;
+                buf = realloc(buf, size + 0x1000);
+                if (buf == NULL) { free(lastbuf); ret = -1; break; }
+            }
+        } while (ret == (s32)HTTPC_RESULTCODE_DOWNLOADPENDING);
+
+        if (ret == 0) {
+            buf = realloc(buf, size);
+            // Null terminate safely if it fits
+            if (buf) {
+                buf = realloc(buf, size + 1);
+                buf[size] = '\0';
+            }
+        }
+
+    } while(0);
+
+    if (newurl) free(newurl);
+    httpcCloseContext(&context);
+    return ret;
+}
+
 Result postEndpoint(const char* endpoint, const char* data) { // wrapper for HTTP POSTing
     char fullHttpUrl[75];
     sprintf(fullHttpUrl, "%s://%s:%s/api/%s", HTTP_OR_HTTPS, SERVER_URL, HTTP_PORT, endpoint);
@@ -567,20 +645,18 @@ RoomList* getRoom(char* name) {
 
 bool append_message(char* username, char* message, char* room) {
     RoomList* roomptr = getRoom(room);
+    if (roomptr == NULL) return false;
+    
     if (roomptr->msgCount > 48) {
         memset(roomptr->msgs, 0, sizeof(roomptr->msgs));
         roomptr->msgCount = 0;
         roomptr->curScroll = 0;
     }
-    if (roomptr != NULL) {
-        strcpy(roomptr->msgs[roomptr->msgCount].username, username);
-        strcpy(roomptr->msgs[roomptr->msgCount].message, message);
-        roomptr->msgCount++;
-        roomptr->curScroll += 55;
-        return true;
-    } else {
-        return false;
-    }
+    strcpy(roomptr->msgs[roomptr->msgCount].username, username);
+    strcpy(roomptr->msgs[roomptr->msgCount].message, message);
+    roomptr->msgCount++;
+    roomptr->curScroll += 55;
+    return true;
 }
 
 /*
@@ -782,24 +858,8 @@ int main() {
 
     char* newsHeader = "Failed to load news header";
     char* newsDesc = "Failed to load news description";
-/*
-    OggOpusFile *file = op_open_file("romfs:/music/settings.opus", NULL);
 
-    audioBuffer = linearAlloc(WAVEBUF_SIZE * 2);
-    memset(waveBufs, 0, sizeof(waveBufs));
-    for (int i = 0; i < 2; i++) {
-        waveBufs[i].data_pcm16 = audioBuffer + (i * SAMPLES_PER_BUF * CHANNELS);
-        waveBufs[i].status = NDSP_WBUF_DONE;
-    }
-
-    LightEvent_Init(&audioEvent, RESET_ONESHOT);
-    Thread thread = threadCreate(audioThread, file, 32 * 1024, 0x18, 1, false);
-
-    fillBuffer(file, &waveBufs[0]);
-    fillBuffer(file, &waveBufs[1]);
-
-*/
-
+    Result kys = 0;
 
     char buffer[1024] = {0};
 
@@ -842,28 +902,28 @@ int main() {
         }
 
         if (scene == 3) {
-            if (hidKeysDown() & KEY_A) {
-                SwkbdState swkbd;
-                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 299);
-                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
-                swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
-                swkbdSetHintText(&swkbd, "Type a message...");
+            // Block input typing if we are on the special static Rules view
+            if (strcmp(rooms[selectedRoom].name, "rules") != 0) {
+                if (hidKeysDown() & KEY_A) {
+                    SwkbdState swkbd;
+                    swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 299);
+                    swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                    swkbdSetValidation(&swkbd, SWKBD_NOTEMPTY, 0, 0);
+                    swkbdSetHintText(&swkbd, "Type a message...");
 
-                swkbdInputText(&swkbd, msg, sizeof(msg));
-                /*
-                char* args[2] = {"http://104.236.25.60:6767/api/chat", sender};
-                Thread httpThread = threadCreate(httpPostThread, args, 0x4000, 0x30, -2, true);
-                */
-                char sender[400];
-                sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
-                postEndpoint("chat", sender);
-                if (buf == NULL) {
+                    swkbdInputText(&swkbd, msg, sizeof(msg));
+                    
+                    char sender[400];
+                    sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
                     postEndpoint("chat", sender);
                     if (buf == NULL) {
                         postEndpoint("chat", sender);
                         if (buf == NULL) {
-                            show_error("The server did not respond, it could be offline.\nTry again later.\n\nAurorachat will now close.");
-                            break;
+                            postEndpoint("chat", sender);
+                            if (buf == NULL) {
+                                show_error("The server did not respond, it could be offline.\nTry again later.\n\nAurorachat will now close.");
+                                break;
+                            }
                         }
                     }
                 }
@@ -978,6 +1038,10 @@ int main() {
                         append_room(roomName, "i forgot");
                         append_message("System", "Welcome!", rooms[i].name);
                     }
+                    
+                    // Inject rules room context manually as a pseudo-room setup
+                    append_room("rules", "Server Rules and Information");
+                    
                     roomsAdded = true;
                 }
             }
@@ -1024,9 +1088,29 @@ int main() {
                     C2D_DrawRectSolid(0, 26 * i, 0, 370, 26, C2D_Color32(0, 0, 0, 255));
                 }
                 DrawText(rooms[i].name, 10, 27 * i, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
+                
                 if (hidKeysDown() & KEY_A) {
-                    scene = 3;
                     selectedRoom = selectingRoom;
+                    
+                    // Intercepting room transition if rules room is clicked
+                    if (strcmp(rooms[selectedRoom].name, "rules") == 0) {
+                        // Clear old contents completely
+                        memset(rooms[selectedRoom].msgs, 0, sizeof(rooms[selectedRoom].msgs));
+                        rooms[selectedRoom].msgCount = 0;
+                        rooms[selectedRoom].curScroll = 0;
+                        
+                        // Fire GET Request to get current rules
+                        char rulesUrl[128];
+                        sprintf(rulesUrl, "%s://%s:%s/api/rules", HTTP_OR_HTTPS, SERVER_URL, HTTP_PORT);
+                        
+                        if (http_get(rulesUrl) == 0 && buf != NULL) {
+                            // Assign downloaded text payload directly to rules layout
+                            append_message("Server", (char*)buf, "rules");
+                        } else {
+                            append_message("System", "Could not fetch rules from server.", "rules");
+                        }
+                    }
+                    scene = 3;
                 }
             }
 
@@ -1043,13 +1127,6 @@ int main() {
             if (hidKeysDown() & KEY_B) {
                 scene = 2;
             }
-            /*
-            if (hidKeysDown() & KEY_Y) {
-                char sender[400];
-                sprintf(sender, "%s|%s|", msg, rooms[selectedRoom].name);
-                http_post("http://104.236.25.60:6767/api/chat", sender);
-            }
-            */
 
             C2D_SceneBegin(top);
 
@@ -1066,14 +1143,20 @@ int main() {
             DrawText("aurorachat", 290, 2, 0, 0.8f, 0.8f, C2D_Color32(215, 228, 255, 255), false);
             DrawText("Move: ", 5, 180, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
             DrawText("Leave: B", 5, 200, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
-            DrawText("Send a message: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            if (strcmp(rooms[selectedRoom].name, "rules") != 0) {
+                DrawText("Send a message: ", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 150), false);
+            }
 
 
             C2D_SceneBegin(bottom);
             C2D_DrawSprite(&bg);
             DrawText(rooms[selectedRoom].name, 10, 5, 0, 1.1f, 1.1f, C2D_Color32(215, 228, 255, 255), false);
 
-            DrawText("Press A to type a message...", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 160), false);
+            if (strcmp(rooms[selectedRoom].name, "rules") != 0) {
+                DrawText("Press A to type a message...", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 160), false);
+            } else {
+                DrawText("Viewing official system rules.", 5, 220, 0, 0.6f, 0.6f, C2D_Color32(255, 255, 255, 160), false);
+            }
 
         }
 
@@ -1257,22 +1340,8 @@ int main() {
 
 
         C3D_FrameEnd(0);
-
-        /*
-        if (waveBufs[0].status == NDSP_WBUF_DONE) {
-            if (!fillBuffer(file, &waveBufs[0]));
-        }
-        if (waveBufs[1].status == NDSP_WBUF_DONE) {
-            if (!fillBuffer(file, &waveBufs[1]));
-        }
-        */
 	}
 
-    /*
-    if (file) {
-        op_free(file);
-    }
-    */
     socExit();
     httpcExit();
 	gfxExit();
