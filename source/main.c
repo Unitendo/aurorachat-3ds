@@ -800,7 +800,6 @@ int main() {
 
 */
 
-    Result kys = 0;
 
     char buffer[1024] = {0};
 
