@@ -932,7 +932,7 @@ int main() {
                 			strtok(buftext, "|");
                 			char* reason = strtok(NULL, "|");
                 			char displayErr[400];
-                			sprintf(displayErr, "You have been banned mid-session.\n\nReason:\n%s", reason ? reason : "No reason specified");
+                			sprintf(displayErr, "You have been banned mid-session.\n\nReason:\n%s\nPlease appeal at https://auc.unitendo.org/appeal", reason ? reason : "No reason specified");
                 			show_error(displayErr);
                 			break; // Kick user out of primary application lifecycle execution loop
             			} else if (strstr(buftext, "ERR_MUTED") != 0) {
@@ -1277,7 +1277,7 @@ int main() {
             			strtok(buftext, "|"); 
             			char* reason = strtok(NULL, "|");
             			char displayErr[400];
-            			sprintf(displayErr, "Your IP is banned from creating accounts.\n\nReason:\n%s", reason ? reason : "No reason specified");
+            			sprintf(displayErr, "Your IP is banned from creating accounts.\n\nReason:\n%s\nPlease appeal at https://auc.unitendo.org/appeal", reason ? reason : "No reason specified");
             			show_error(displayErr);
                     } else {
                         scene = 6;
@@ -1348,7 +1348,7 @@ int main() {
 			            strtok(buftext, "|"); // Skips "ERR_BANNED"
             			char* reason = strtok(NULL, "|");
             			char displayErr[400];
-            			sprintf(displayErr, "You have been banned from Aurorachat.\n\nReason:\n%s", reason ? reason : "No reason specified");
+            			sprintf(displayErr, "You have been banned from Aurorachat.\n\nReason:\n%s\nPlease appeal at https://auc.unitendo.org/appeal/", reason ? reason : "No reason specified");
             			show_error(displayErr);
         			} else {
             			char* intactToken = strtok(buftext, "|");
