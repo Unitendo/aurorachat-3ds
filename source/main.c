@@ -926,6 +926,19 @@ int main() {
                             }
                         }
                     }
+					if (buf != NULL) {
+            			sprintf(buftext, "%s", buf);
+            			if (strstr(buftext, "ERR_BANNED") != 0) {
+                			strtok(buftext, "|");
+                			char* reason = strtok(NULL, "|");
+                			char displayErr[400];
+                			sprintf(displayErr, "You have been banned mid-session.\n\nReason:\n%s", reason ? reason : "No reason specified");
+                			show_error(displayErr);
+                			break; // Kick user out of primary application lifecycle execution loop
+            			} else if (strstr(buftext, "ERR_MUTED") != 0) {
+                			show_error("Your message wasn't sent because you are currently muted.");
+           			    }
+        			}
                 }
             }
         }
@@ -1260,6 +1273,12 @@ int main() {
                         show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
                     } else if (strstr(buftext, "ERR_USER_USED") != 0) {
                         show_error("The username you chose is in use, please choose a different username.");
+					} else if (strstr(buftext, "ERR_BANNED") != 0) {
+            			strtok(buftext, "|"); 
+            			char* reason = strtok(NULL, "|");
+            			char displayErr[400];
+            			sprintf(displayErr, "Your IP is banned from creating accounts.\n\nReason:\n%s", reason ? reason : "No reason specified");
+            			show_error(displayErr);
                     } else {
                         scene = 6;
                     }
