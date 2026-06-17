@@ -1304,33 +1304,40 @@ int main() {
             DrawText("Log In", 10, 27 * 2, 0, 0.7f, 0.7f, C2D_Color32(215, 228, 255, 255), false);
 
             if (hidKeysDown() & KEY_A) {
-                if (selectingRoom == 2) {
-                    selectingRoom = 0;
-                    char sender[300];
-                    sprintf(sender, "%s|%s|", username, password);
-                    postEndpoint("login", sender);
-                    if (buf == NULL) {
-                        postEndpoint("login", sender);
-                        if (buf == NULL) {
-                            postEndpoint("login", sender);
-                            if (buf == NULL) {
-                                show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
-                                break;
-                            }
-                        }
-                    }
-                    sprintf(buftext, "%s", buf);
-                    if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
-                        show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
-                    } else if (strstr(buftext, "ERR_WRONG_PASS") != 0) {
-                        show_error("You entered the wrong password.\nTry again.");
-                    } else {
-                        char* intactToken = strtok(buftext, "|");
-                        sprintf(token, "%s", intactToken);
-                        scene = 2;
-                    }
-                }
-            }
+    			if (selectingRoom == 2) {
+    				selectingRoom = 0;
+        			char sender[300];
+        			sprintf(sender, "%s|%s|", username, password);
+        			postEndpoint("login", sender);
+        			if (buf == NULL) {
+            			postEndpoint("login", sender);
+            			if (buf == NULL) {
+                			postEndpoint("login", sender);
+                			if (buf == NULL) {
+                    			show_error("The server never responded.\nTry again later.\n\nAurorachat will now close.");
+                    			break;
+                			}
+            			}
+        			}
+        			sprintf(buftext, "%s", buf);
+        			if (strstr(buftext, "ERR_MISSING_INPUT") != 0) {
+            			show_error("You need to enter BOTH fields.\nGo enter a username AND password then try again.");
+        			} else if (strstr(buftext, "ERR_WRONG_PASS") != 0) {
+            			show_error("You entered the wrong password.\nTry again.");
+        			} else if (strstr(buftext, "ERR_BANNED") != 0) {
+            			// Parse ban reason out of "ERR_BANNED|Reason|"
+			            strtok(buftext, "|"); // Skips "ERR_BANNED"
+            			char* reason = strtok(NULL, "|");
+            			char displayErr[400];
+            			sprintf(displayErr, "You have been banned from Aurorachat.\n\nReason:\n%s", reason ? reason : "No reason specified");
+            			show_error(displayErr);
+        			} else {
+            			char* intactToken = strtok(buftext, "|");
+            			sprintf(token, "%s", intactToken);
+            			scene = 2;
+        			}
+    			}
+			}
 
         }
 
