@@ -51,5 +51,5 @@ jobs:
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{"content": "New build. Click the top link at https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml . If you dont know how to do this, I will find you."}' \
+          -d '{"content": "<@&1487250161213374606> New build. Click the top link at https://github.com/Unitendo/aurorachat-3ds/actions/workflows/build.yml . If you dont know how to do this, I will find you."}' \
           ${{ secrets.DISCORD_WEBHOOK }}
