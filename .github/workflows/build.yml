@@ -6,11 +6,13 @@ on:
     paths:
       - 'source/**'
       - '.github/workflows/build.yml'
+      - 'Makefile'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'source/**'
       - '.github/workflows/build.yml'
+      - 'Makefile'
   workflow_dispatch:
 
 jobs:
