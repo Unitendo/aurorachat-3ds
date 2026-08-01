@@ -852,10 +852,10 @@ int main() {
     int sdmcFailed = loadAudio("sdmc:/auc.wav");
 	if (sdmcFailed == 1) { 
 		int x = rand() % 2;
-		if x = 1 {
+		if (x == 1) {
 			loadAudio("romfs:/auc.wav");
 		}
-		if x = 2 {
+		if (x == 2) {
 			loadAudio("romfs:/bullshit3.wav");
 		}
 		
