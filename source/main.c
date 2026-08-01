@@ -847,11 +847,18 @@ int main() {
     int loadingTimer = 0;
 
     int scene = 1;
-
+    srand(time(NULL)); //yeah
     // load and play music
     int sdmcFailed = loadAudio("sdmc:/auc.wav");
 	if (sdmcFailed == 1) { 
-		loadAudio("romfs:/auc.wav");
+		int x = rand() % 2;
+		if x = 1 {
+			loadAudio("romfs:/auc.wav");
+		}
+		if x = 2 {
+			loadAudio("romfs:/bullshit3.wav");
+		}
+		
 	}
     ndspChnWaveBufAdd(1, &waveBufA);
     ndspChnWaveBufAdd(1, &waveBufB);
