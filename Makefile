@@ -41,7 +41,7 @@ GFXBUILD	:=	$(BUILD)
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
 APP_TITLE   :=  aurorachat
-APP_AUTHOR  :=  The team at Unitendo
+APP_AUTHOR  :=  The team at Startendo
 APP_DESCRIPTION  :=  A real-time chatting app for the Nintendo 3DS
 ICON		:= meta/icon.png
 #---------------------------------------------------------------------------------
