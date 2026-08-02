@@ -854,8 +854,7 @@ int main() {
 		int x = rand() % 2;
 		if (x == 1) {
 			loadAudio("romfs:/auc.wav");
-		}
-		if (x == 2) {
+		} else {
 			loadAudio("romfs:/bullshit3.wav");
 		}
 		
