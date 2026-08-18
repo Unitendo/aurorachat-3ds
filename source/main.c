@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
                     append_message(param1, param2);
                     char totalmessage[500];
                     snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
-                    chatscroll += 15;
+                    chatscroll -= 15;
                     int timesToExt = 0;
                     timesToExt = strlen(totalmessage) / 39;
                     for (int i = 0; i < timesToExt; i++) {
@@ -157,6 +157,13 @@ int main(int argc, char* argv[])
                     errcde = 2;
                     sprintf(errRes, "%s", param1);
 				}
+
+                if(!strcmp(param1, "banned") && (errcde = 2)) {
+                    char bnerror[150];
+                    sprintf(bnerror, "You are banned, reason:\n\n%s", param2);
+                    show_error(bnerror);
+                    return 0;
+                }
 
                 if (registering && (errcde == 2)) {
                     if (!strcmp(errRes, "user_exists")) {
