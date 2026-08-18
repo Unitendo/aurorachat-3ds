@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
                     int timesToExt = 0;
                     timesToExt = strlen(totalmessage) / 39;
                     for (int i = 0; i < timesToExt; i++) {
-                        chatscroll += 14;
+                        chatscroll -= 14;
                     }
 				}
 
