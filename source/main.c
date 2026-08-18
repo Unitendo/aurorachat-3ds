@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 					printf("<%s>: %s\n", param1, param2);
                     append_message(param1, param2);
                     char totalmessage[500];
-                    snprintf(totalmessage, 500, "<%s>: %s", history[i].username, history[i].message);
+                    snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
                     chatscroll += 15;
                     int timesToExt = 0;
                     timesToExt = strlen(totalmessage) / 39;
