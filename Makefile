@@ -40,9 +40,10 @@ GRAPHICS	:=	gfx
 GFXBUILD	:=	$(BUILD)
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(ROMFS)/gfx
-APP_TITLE := Aurorachat v7 Pre-release
-APP_DESCRIPTION := Aurorachat v7 Early Access
-APP_AUTHOR := Virtualle, Startendo
+ICON := meta/icon.png
+APP_TITLE := Aurorachat (Experimental)
+APP_DESCRIPTION := Experimental version: v7
+APP_AUTHOR := Startendo
 
 #---------------------------------------------------------------------------------
 # options for code generation
