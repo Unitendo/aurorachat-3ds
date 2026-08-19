@@ -7,7 +7,7 @@
 #include <malloc.h>
 #include <citro2d.h>
 
-#define SERVER_URL "104.236.25.60"
+#define SERVER_URL "10.22.23.207"
 #define SOCKET_PORT "7070"
 
 C2D_TextBuf sbuffer;
@@ -29,7 +29,7 @@ void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u
 }
 
 typedef struct {
-    char username[20];
+    char username[40];
     char message[366];
 } MessageHistory;
 
@@ -40,7 +40,7 @@ void append_message(char* username, char* message) {
     if (msgCount > 499) {
         msgCount = 0;
     }
-    snprintf(history[msgCount].username, 20, "%s", username);
+    snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
     msgCount += 1;
 }
@@ -65,6 +65,107 @@ char errRes[30] = {0};
 
 bool loggingIn = false;
 bool registering = false;
+
+bool die = false;
+
+char servername[30] = {0};
+char* roomname = "general";
+
+static char buffer[4096];
+static size_t bufferlen = 0;
+
+void processline(char *line) {
+    char *cmd = strtok(line, "|");
+    char *param1 = strtok(NULL, "|");
+    char *param2 = strtok(NULL, "|");
+    
+    if (cmd && param1 && param2) {
+        size_t len = strlen(param2);
+        
+        if (!strcmp(cmd, "msg")) {
+			printf("<%s>: %s\n", param1, param2);
+            append_message(param1, param2);
+            char totalmessage[500];
+            snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
+            chatscroll -= 15;
+            int timesToExt = 0;
+            timesToExt = strlen(totalmessage) / 39;
+            for (int i = 0; i < timesToExt; i++) {
+                chatscroll -= 14;
+            }
+        }
+
+        if (!strcmp(cmd, "hello")) {
+            sprintf(servername, "%s", param2);
+		}
+
+        if (!strcmp(cmd, "ipbanned")) {
+            show_error("Your IP address is banned.\nThe app will now close.");
+            die = true;
+		}
+
+        if (!strcmp(cmd, "ok")) {
+            errcde = 1;
+		}
+
+        if (!strcmp(cmd, "err")) {
+            errcde = 2;
+            sprintf(errRes, "%s", param1);
+		}
+
+        if(!strcmp(param1, "banned") && (errcde = 2)) {
+            char bnerror[150];
+            sprintf(bnerror, "You are banned, reason:\n\n%s", param2);
+            show_error(bnerror);
+            die = true;
+        }
+
+                if (registering && (errcde == 2)) {
+                    if (!strcmp(errRes, "user_exists")) {
+                        show_error("Username is already taken.");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "register_failure")) {
+                        show_error("Registration failed.\nTry a different username perhaps?");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "args_bad")) {
+                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                }
+
+                if (loggingIn && (errcde == 2)) {
+                    if (!strcmp(errRes, "bad_login")) {
+                        show_error("The credentials you provided are invalid.\nPlease try again.");
+                        scene = 2;
+                        loggingIn = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "args_bad")) {
+                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
+                        scene = 2;
+                        loggingIn = false;
+                        goto freedom;
+                    }
+                }
+
+                freedom:
+                errcde = 0;
+                selbtn = 1;
+    }
+}
+
+
+
+
+
 
 int main(int argc, char* argv[])
 {
@@ -103,14 +204,10 @@ int main(int argc, char* argv[])
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
-	char buffer[1024] = {0};
-
-    char servername[30] = {0};
-    char* roomname = "general";
-
 	// Main loop
 	while (aptMainLoop())
 	{
+
 		hidScanInput();
 
 		fd_set readfds;
@@ -118,11 +215,52 @@ int main(int argc, char* argv[])
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
+        char tempbuffer[1024];
+        ssize_t len = recv(sock, tempbuffer, sizeof(tempbuffer) - 1, 0);
+    
+        if (len == 0) {
+            show_error("Connection interrupted.\nThe app will now close.");
+            die = true;
+        }
+
+        if (len < 0) {
+            goto skip_recv;
+        }
+    
+        tempbuffer[len] = '\0';
+    
+        if (bufferlen + len >= 4096) {
+            bufferlen = 0;
+        }
+
+        memcpy(buffer + bufferlen, tempbuffer, len);
+        bufferlen += len;
+        buffer[bufferlen] = '\0';
+
+        char *line_start = buffer;
+        char *newline_pos;
+    
+        while ((newline_pos = strchr(line_start, '\n')) != NULL) {
+            *newline_pos = '\0'; 
+        
+            if (newline_pos > line_start) {
+                processline(line_start);
+            }
+
+            line_start = newline_pos + 1;
+        }
+
+        size_t remaining = bufferlen - (line_start - buffer);
+        if (remaining > 0 && line_start != buffer) {
+            memmove(buffer, line_start, remaining);
+        }
+        bufferlen = remaining;
+
+        /*
         ssize_t len = recv(sock, buffer, 1024-1, 0);
         if (len > 0) {
             if (len > 0 && (len < 1024)) {
                 buffer[1023] = '\0';
-            //    append_message("DEBUG", buffer);
                 char* cmd = strtok(buffer, "|");
                 char* param1 = strtok(NULL, "|");
                 char* param2 = strtok(NULL, "|");
@@ -138,7 +276,7 @@ int main(int argc, char* argv[])
                     for (int i = 0; i < timesToExt; i++) {
                         chatscroll -= 14;
                     }
-				}
+                }
 
                 if (!strcmp(cmd, "hello")) {
                     sprintf(servername, "%s", param2);
@@ -212,6 +350,13 @@ int main(int argc, char* argv[])
         } else {
             // nothing
         }
+        */
+
+        skip_recv:
+
+        if (die == true) {
+            break;
+        }
 
         if (scene == 1) {
 		    if (hidKeysDown() & KEY_A) {
@@ -259,7 +404,7 @@ int main(int argc, char* argv[])
             if (hidKeysDown() & KEY_A) {
                 if (selbtn == 3) {
                     char sender[80];
-                    sprintf(sender, "login|%s|%s|\njoin|general|\n", username, password);
+                    sprintf(sender, "login|%s|%s|\njoin|general|\nhistory|1000\n", username, password);
 			        send(sock, sender, strlen(sender), flags);
                     loggingIn = true;
                     scene = 1;
@@ -462,7 +607,6 @@ int main(int argc, char* argv[])
 	}
 
 	gfxExit();
-    closesocket(sock);
-    socExit();
-	return 0;
+    if (sock != NULL)
+        closesocket(sock);
 }
