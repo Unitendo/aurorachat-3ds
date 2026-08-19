@@ -50,7 +50,7 @@ APP_AUTHOR := Startendo
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS	:=	-g -Wall -O2 -mword-relocations \
+CFLAGS	:=	-g -Wall -Wno-address -Wno-format-truncation -O2 -mword-relocations \
 			-ffunction-sections \
 			$(ARCH)
 
