@@ -1,2 +1,5 @@
 build
 aurorachat-3ds.*
+*.3dsx
+*.elf
+*.smdh
