@@ -7,7 +7,7 @@
 #include <malloc.h>
 #include <citro2d.h>
 
-#define SERVER_URL "10.22.23.207"
+#define SERVER_URL "104.236.25.60"
 #define SOCKET_PORT "7070"
 
 C2D_TextBuf sbuffer;
