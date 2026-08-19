@@ -14,7 +14,6 @@ C2D_TextBuf sbuffer;
 C2D_Text stext;
 
 void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
-//    if (!sbuffer) {return;}
     C2D_TextBufClear(sbuffer);
     C2D_TextParse(&stext, sbuffer, text);
     C2D_TextOptimize(&stext);
