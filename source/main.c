@@ -14,6 +14,7 @@ C2D_TextBuf sbuffer;
 C2D_Text stext;
 
 void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u32 color, bool wordwrap) {
+//    if (!sbuffer) {return;}
     C2D_TextBufClear(sbuffer);
     C2D_TextParse(&stext, sbuffer, text);
     C2D_TextOptimize(&stext);
@@ -32,11 +33,11 @@ typedef struct {
     char message[366];
 } MessageHistory;
 
-MessageHistory history[500];
+MessageHistory history[800];
 int msgCount = 0;
 
 void append_message(char* username, char* message) {
-    if (msgCount > 499) {
+    if (msgCount > 798) {
         msgCount = 0;
     }
     snprintf(history[msgCount].username, 40, "%s", username);
@@ -72,94 +73,6 @@ char* roomname = "general";
 
 static char buffer[4096];
 static size_t bufferlen = 0;
-
-void processline(char *line) {
-    char *cmd = strtok(line, "|");
-    char *param1 = strtok(NULL, "|");
-    char *param2 = strtok(NULL, "|");
-    
-    if (cmd && param1 && param2) {
-        size_t len = strlen(param2);
-        
-        if (!strcmp(cmd, "msg")) {
-			printf("<%s>: %s\n", param1, param2);
-            append_message(param1, param2);
-            char totalmessage[500];
-            snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
-            chatscroll -= 15;
-            int timesToExt = 0;
-            timesToExt = strlen(totalmessage) / 39;
-            for (int i = 0; i < timesToExt; i++) {
-                chatscroll -= 14;
-            }
-        }
-
-        if (!strcmp(cmd, "hello")) {
-            sprintf(servername, "%s", param2);
-		}
-
-        if (!strcmp(cmd, "ipbanned")) {
-            show_error("Your IP address is banned.\nThe app will now close.");
-            die = true;
-		}
-
-        if (!strcmp(cmd, "ok")) {
-            errcde = 1;
-		}
-
-        if (!strcmp(cmd, "err")) {
-            errcde = 2;
-            sprintf(errRes, "%s", param1);
-		}
-
-        if(!strcmp(param1, "banned") && (errcde = 2)) {
-            char bnerror[150];
-            sprintf(bnerror, "You are banned, reason:\n\n%s", param2);
-            show_error(bnerror);
-            die = true;
-        }
-
-                if (registering && (errcde == 2)) {
-                    if (!strcmp(errRes, "user_exists")) {
-                        show_error("Username is already taken.");
-                        scene = 2;
-                        registering = false;
-                        goto freedom;
-                    }
-                    if (!strcmp(errRes, "register_failure")) {
-                        show_error("Registration failed.\nTry a different username perhaps?");
-                        scene = 2;
-                        registering = false;
-                        goto freedom;
-                    }
-                    if (!strcmp(errRes, "args_bad")) {
-                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
-                        scene = 2;
-                        registering = false;
-                        goto freedom;
-                    }
-                }
-
-                if (loggingIn && (errcde == 2)) {
-                    if (!strcmp(errRes, "bad_login")) {
-                        show_error("The credentials you provided are invalid.\nPlease try again.");
-                        scene = 2;
-                        loggingIn = false;
-                        goto freedom;
-                    }
-                    if (!strcmp(errRes, "args_bad")) {
-                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
-                        scene = 2;
-                        loggingIn = false;
-                        goto freedom;
-                    }
-                }
-
-                freedom:
-                errcde = 0;
-                selbtn = 1;
-    }
-}
 
 
 
@@ -243,7 +156,106 @@ int main(int argc, char* argv[])
             *newline_pos = '\0'; 
         
             if (newline_pos > line_start) {
-                processline(line_start);
+                
+                char* line = line_start;
+
+    char *cmd = strtok(line, "|");
+    char *param1 = strtok(NULL, "|");
+    char *param2 = strtok(NULL, "|");
+    
+    if (cmd && param1 && param2) {
+        
+        if (!strcmp(cmd, "msg")) {
+			printf("<%s>: %s\n", param1, param2);
+            append_message(param1, param2);
+            char totalmessage[500];
+            snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
+            chatscroll -= 15;
+            int timesToExt = 0;
+            timesToExt = strlen(totalmessage) / 39;
+            for (int i = 0; i < timesToExt; i++) {
+                chatscroll -= 14;
+            }
+        }
+
+        if (!strcmp(cmd, "hello")) {
+            sprintf(servername, "%s", param2);
+		}
+
+        if (!strcmp(cmd, "ipbanned")) {
+            show_error("Your IP address is banned.\nThe app will now close.");
+            die = true;
+		}
+
+        if (!strcmp(cmd, "ok")) {
+            errcde = 1;
+		}
+
+        if (!strcmp(cmd, "err")) {
+            errcde = 2;
+            sprintf(errRes, "%s", param1);
+		}
+
+        if(!strcmp(param1, "banned") && (errcde = 2)) {
+            char bnerror[150];
+            sprintf(bnerror, "You are banned, reason:\n\n%s", param2);
+            show_error(bnerror);
+            die = true;
+        }
+
+                if (registering && (errcde == 2)) {
+                    if (!strcmp(errRes, "user_exists")) {
+                        show_error("Username is already taken.");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "register_failure")) {
+                        show_error("Registration failed.\nTry a different username perhaps?");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "args_bad")) {
+                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
+                        scene = 2;
+                        registering = false;
+                        goto freedom;
+                    }
+                }
+
+                if (loggingIn && (errcde == 2)) {
+                    if (!strcmp(errRes, "bad_login")) {
+                        show_error("The credentials you provided are invalid.\nPlease try again.");
+                        scene = 2;
+                        loggingIn = false;
+                        goto freedom;
+                    }
+                    if (!strcmp(errRes, "args_bad")) {
+                        show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
+                        scene = 2;
+                        loggingIn = false;
+                        goto freedom;
+                    }
+                }
+
+                freedom:
+                errcde = 0;
+                selbtn = 1;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
             }
 
             line_start = newline_pos + 1;
@@ -343,7 +355,7 @@ int main(int argc, char* argv[])
             if (hidKeysDown() & KEY_A) {
                 if (selbtn == 3) {
                     char sender[140];
-                    sprintf(sender, "register|%s|%s|\nlogin|%s|%s|\njoin|general|", username, password, username, password);
+                    sprintf(sender, "register|%s|%s|\nlogin|%s|%s|\njoin|general|\nhistory|1000|\n", username, password, username, password);
 			        send(sock, sender, strlen(sender), flags);
                     registering = true;
                     scene = 1;
@@ -355,7 +367,7 @@ int main(int argc, char* argv[])
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
         C2D_TargetClear(top, C2D_Color32(255, 255, 255, 255));
-        C2D_TargetClear(bottom, C2D_Color32(0, 0, 255, 255));
+        C2D_TargetClear(bottom, C2D_Color32(255, 255, 255, 255));
 
 		C2D_SceneBegin(top);
 
@@ -499,6 +511,8 @@ int main(int argc, char* argv[])
                 selbtn = 1;
             }
         }
+
+        C2D_SceneBegin(bottom);
         
 
 
