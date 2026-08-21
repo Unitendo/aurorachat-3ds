@@ -53,12 +53,12 @@ void show_error(const char* errtext) {
 }
 
 int scene = 2;
-int selbtn = 2;
+int selbtn = 1;
 
 char username[21];
 char password[21];
 
-float chatscroll = 60.0;
+float chatscroll = 150.0;
 
 int errcde = 0;
 char errRes[30] = {0};
@@ -73,6 +73,37 @@ char* roomname = "general";
 
 static char buffer[4096];
 static size_t bufferlen = 0;
+
+u32 themecolor;
+u32 textcolor;
+u32 textcolorinvert;
+
+typedef struct {
+    char name[30];
+    u32 themecolor;
+    u32 textcolor;
+    u32 textcolorinvert;
+} ThemeList;
+
+ThemeList themes[10];
+int themeCount = 0;
+int currentTheme = 0;
+
+void append_theme(char* name, u32 themecolor, u32 textcolor, u32 textcolorinvert) {
+    themes[themeCount].themecolor = themecolor;
+    themes[themeCount].textcolor = textcolor;
+    themes[themeCount].textcolorinvert = textcolorinvert;
+    sprintf(themes[themeCount].name, name);
+    themeCount++;
+}
+
+u32 btncolor(int btn) {
+    if (selbtn == btn) {
+        return C2D_Color32(0, 0, 255, 255);
+    } else {
+        return C2D_Color32(0, 0, 170, 255);
+    }
+}
 
 
 
@@ -380,6 +411,7 @@ int main(int argc, char* argv[])
 
 
         if (scene == 1) {
+            C2D_SceneBegin(top);
             float y = chatscroll;
             char totalmessage[500];
             for (int i = 0; i < msgCount; i++) {
@@ -400,28 +432,33 @@ int main(int argc, char* argv[])
             if (serverinfo != NULL)
                 DrawText(serverinfo, 5, 0, 0, 0.7, 0.7, C2D_Color32(0, 0, 0, 255), true);
 
+            C2D_SceneBegin(bottom);
+            DrawText("Send a message: \nScroll chat: ", 5, 5, 0, 0.5, 0.5, C2D_Color32(0, 0, 0, 255), true);
+
         }
 
         if (scene == 2) {
-            DrawText("Account", 160, 0, 0, 0.7, 0.7, C2D_Color32(0, 0, 0, 255), true);
-            if (selbtn == 1) {
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
+            C2D_SceneBegin(top);
+            C2D_DrawRectSolid(0, 0, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
+
+            DrawText("Account", 167, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Sign In", 170, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Register", 165, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
             }
 
-            if (selbtn == 2) {
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-            }
-
-            DrawText("Login", 90, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Register", 240, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-
-            if (hidKeysDown() & KEY_LEFT) {
-                selbtn = 1;
-            }
-            if (hidKeysDown() & KEY_RIGHT) {
+            if (selbtn < 1) {
                 selbtn = 2;
+            }
+            if (selbtn > 2) {
+                selbtn = 1;
             }
 
             if (hidKeysDown() & KEY_A) {
@@ -435,84 +472,106 @@ int main(int argc, char* argv[])
         }
 
         if (scene == 3) {
-            DrawText("Log In", 165, 0, 0, 0.7, 0.7, C2D_Color32(0, 0, 0, 255), true);
-            if (selbtn == 1) {
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
+            C2D_SceneBegin(top);
+            C2D_DrawRectSolid(0, 0, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
+            C2D_DrawRectSolid(0, 150, 0, 500, 50, btncolor(3));
+            C2D_DrawRectSolid(0, 200, 0, 500, 50, btncolor(4));
+
+            DrawText("Sign In", 170, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Username", 162, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Password", 162, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Login", 168, 165, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+
+            C2D_SceneBegin(bottom);
+            switch (selbtn) {
+                case 1:
+                    DrawText("Username", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Enter your account's username.", 50, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
+                case 2:
+                    DrawText("Password", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Enter your account's password.", 50, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
+                case 3:
+                    DrawText("Login", 140, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Log in using the details you provided.", 30, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
             }
 
-            if (selbtn == 2) {
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-            }
-
-            if (selbtn == 3) {
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-            }
-
-            DrawText("Username", 70, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Password", 235, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Login", 170, 205, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-
-            if (hidKeysUp() & KEY_LEFT) {
-                selbtn--;
-            }
-            if (hidKeysUp() & KEY_RIGHT) {
+            if (hidKeysDown() & KEY_DOWN) {
                 selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
             }
 
             if (selbtn < 1) {
-                selbtn = 3;
+                selbtn = 4;
             }
-            if (selbtn > 3) {
+            if (selbtn > 4) {
                 selbtn = 1;
+            }
+
+            if (hidKeysDown() & KEY_A) {
+                if (selbtn == 4) {
+                    scene = 2;
+                }
             }
         }
 
         if (scene == 4) {
-            DrawText("Register", 160, 0, 0, 0.7, 0.7, C2D_Color32(0, 0, 0, 255), true);
-            if (selbtn == 1) {
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
+            C2D_SceneBegin(top);
+            C2D_DrawRectSolid(0, 0, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
+            C2D_DrawRectSolid(0, 150, 0, 500, 50, btncolor(3));
+            C2D_DrawRectSolid(0, 200, 0, 500, 50, btncolor(4));
+
+            DrawText("Register", 165, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Username", 162, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Password", 162, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Register", 162, 165, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+
+            C2D_SceneBegin(bottom);
+            switch (selbtn) {
+                case 1:
+                    DrawText("Username", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Enter a username.", 85, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
+                case 2:
+                    DrawText("Password", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Enter a password.", 85, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
+                case 3:
+                    DrawText("Register", 125, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Sign up using the details you provided.", 15, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    break;
             }
 
-            if (selbtn == 2) {
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-            }
-
-            if (selbtn == 3) {
-                C2D_DrawRectSolid(215, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(55, 100, 0, 120, 70, C2D_Color32(0, 0, 100, 255));
-                C2D_DrawRectSolid(135, 200, 0, 120, 70, C2D_Color32(0, 0, 255, 255));
-            }
-
-            DrawText("Username", 70, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Password", 235, 120, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Login", 170, 205, 0, 0.7, 0.7, C2D_Color32(255, 255, 255, 255), true);
-
-            if (hidKeysUp() & KEY_LEFT) {
-                selbtn--;
-            }
-            if (hidKeysUp() & KEY_RIGHT) {
+            if (hidKeysDown() & KEY_DOWN) {
                 selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
             }
 
             if (selbtn < 1) {
-                selbtn = 3;
+                selbtn = 4;
             }
-            if (selbtn > 3) {
+            if (selbtn > 4) {
                 selbtn = 1;
             }
-        }
 
-        C2D_SceneBegin(bottom);
+            if (hidKeysDown() & KEY_A) {
+                if (selbtn == 4) {
+                    scene = 2;
+                }
+            }
+        }
         
 
 
