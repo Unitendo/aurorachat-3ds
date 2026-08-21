@@ -147,6 +147,12 @@ int main(int argc, char* argv[])
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
+
+    append_theme("White", C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255));
+    append_theme("Black", C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
+    append_theme("Deep Green", C2D_Color32(17, 44, 27, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
+    append_theme("Bright Aqua", C2D_Color32(80, 226, 190, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
+
 	// Main loop
 	while (aptMainLoop())
 	{
@@ -347,13 +353,13 @@ int main(int argc, char* argv[])
 			        swkbdInputText(&swkbd, password, sizeof(password));
                 }
             }
-            if (hidKeysDown() & KEY_A) {
+            if (hidKeysUp() & KEY_A) {
                 if (selbtn == 3) {
                     char sender[80];
                     sprintf(sender, "login|%s|%s|\njoin|general|\nhistory|1000\n", username, password);
 			        send(sock, sender, strlen(sender), flags);
                     loggingIn = true;
-                    scene = 1;
+                    scene = 5;
                 }
             }
         }
@@ -383,13 +389,13 @@ int main(int argc, char* argv[])
 			        swkbdInputText(&swkbd, password, sizeof(password));
                 }
             }
-            if (hidKeysDown() & KEY_A) {
+            if (hidKeysUp() & KEY_A) {
                 if (selbtn == 3) {
                     char sender[140];
                     sprintf(sender, "register|%s|%s|\nlogin|%s|%s|\njoin|general|\nhistory|1000|\n", username, password, username, password);
 			        send(sock, sender, strlen(sender), flags);
                     registering = true;
-                    scene = 1;
+                    scene = 5;
                 }
             }
         }
@@ -397,8 +403,8 @@ int main(int argc, char* argv[])
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
-        C2D_TargetClear(top, C2D_Color32(255, 255, 255, 255));
-        C2D_TargetClear(bottom, C2D_Color32(255, 255, 255, 255));
+        C2D_TargetClear(top, themes[currentTheme].themecolor);
+        C2D_TargetClear(bottom, themes[currentTheme].themecolor);
 
 		C2D_SceneBegin(top);
 
@@ -416,7 +422,7 @@ int main(int argc, char* argv[])
             char totalmessage[500];
             for (int i = 0; i < msgCount; i++) {
                 snprintf(totalmessage, 500, "<%s>: %s", history[i].username, history[i].message);
-                DrawText(totalmessage, 5, y, 0, 0.5, 0.5, C2D_Color32(0, 0, 0, 255), true);
+                DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
                 y += 15;
                 int timesToExt = 0;
                 timesToExt = strlen(totalmessage) / 39;
@@ -425,16 +431,19 @@ int main(int argc, char* argv[])
                 }
             }
 
-            C2D_DrawRectSolid(0, 0, 0, 600, 29, C2D_Color32(255, 255, 255, 255));
+            C2D_DrawRectSolid(0, 0, 0, 600, 29, themes[currentTheme].themecolor);
             char serverinfo[100] = {0};
             if (servername != NULL)
                 sprintf(serverinfo, "#%s [%s]", roomname, servername);
             if (serverinfo != NULL)
-                DrawText(serverinfo, 5, 0, 0, 0.7, 0.7, C2D_Color32(0, 0, 0, 255), true);
+                DrawText(serverinfo, 5, 0, 0, 0.7, 0.7, themes[currentTheme].textcolor, true);
 
             C2D_SceneBegin(bottom);
-            DrawText("Send a message: \nScroll chat: ", 5, 5, 0, 0.5, 0.5, C2D_Color32(0, 0, 0, 255), true);
+            DrawText(": Send message\n: Scroll chat\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
 
+            if (hidKeysUp() & KEY_B) {
+                scene = 5;
+            }
         }
 
         if (scene == 2) {
@@ -443,9 +452,9 @@ int main(int argc, char* argv[])
             C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
             C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
 
-            DrawText("Account", 167, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Sign In", 170, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Register", 165, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Account", 167, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Sign In", 170, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Register", 165, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             if (hidKeysDown() & KEY_DOWN) {
                 selbtn++;
@@ -479,25 +488,25 @@ int main(int argc, char* argv[])
             C2D_DrawRectSolid(0, 150, 0, 500, 50, btncolor(3));
             C2D_DrawRectSolid(0, 200, 0, 500, 50, btncolor(4));
 
-            DrawText("Sign In", 170, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Username", 162, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Password", 162, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Login", 168, 165, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Sign In", 170, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Username", 162, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Password", 162, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Login", 168, 165, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             C2D_SceneBegin(bottom);
             switch (selbtn) {
                 case 1:
-                    DrawText("Username", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Enter your account's username.", 50, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Username", 120, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Enter your account's username.", 50, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
                 case 2:
-                    DrawText("Password", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Enter your account's password.", 50, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Password", 120, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Enter your account's password.", 50, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
                 case 3:
-                    DrawText("Login", 140, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Log in using the details you provided.", 30, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Login", 140, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Log in using the details you provided.", 30, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
             }
 
@@ -530,25 +539,25 @@ int main(int argc, char* argv[])
             C2D_DrawRectSolid(0, 150, 0, 500, 50, btncolor(3));
             C2D_DrawRectSolid(0, 200, 0, 500, 50, btncolor(4));
 
-            DrawText("Register", 165, 15, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Username", 162, 65, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Password", 162, 115, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Register", 162, 165, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
-            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, C2D_Color32(255, 255, 255, 255), true);
+            DrawText("Register", 165, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Username", 162, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Password", 162, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Register", 162, 165, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Go Back", 163, 215, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             C2D_SceneBegin(bottom);
             switch (selbtn) {
                 case 1:
-                    DrawText("Username", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Enter a username.", 85, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Username", 120, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Enter a username.", 85, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
                 case 2:
-                    DrawText("Password", 120, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Enter a password.", 85, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Password", 120, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Enter a password.", 85, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
                 case 3:
-                    DrawText("Register", 125, 50, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
-                    DrawText("Sign up using the details you provided.", 15, 70, 0, 0.6, 0.6, C2D_Color32(0, 0, 0, 255), true);
+                    DrawText("Register", 125, 50, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+                    DrawText("Sign up using the details you provided.", 15, 70, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
                     break;
             }
 
@@ -570,6 +579,80 @@ int main(int argc, char* argv[])
                 if (selbtn == 4) {
                     scene = 2;
                 }
+            }
+        }
+
+        if (scene == 5) {
+            C2D_SceneBegin(top);
+            C2D_DrawRectSolid(0, 0, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
+
+            DrawText("Main Menu", 167, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Chat", 170, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Themes", 165, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
+            }
+
+            if (selbtn < 1) {
+                selbtn = 2;
+            }
+            if (selbtn > 2) {
+                selbtn = 1;
+            }
+
+            C2D_SceneBegin(bottom);
+
+            if (hidKeysDown() & KEY_A) {
+                if (selbtn == 1) {
+                    scene = 1;
+                }
+                if (selbtn == 2) {
+                    scene = 6;
+                }
+            }
+        }
+
+        if (scene == 6) {
+            C2D_SceneBegin(top);
+
+            for (int i = 0; i < themeCount; i++) {
+                C2D_DrawRectSolid(0, 50 * i, 0, 500, 50, btncolor(i));
+
+                if (i != 0) {
+                    DrawText(themes[i].name, 5, 50 * i + 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                } else {
+                    DrawText(themes[i].name, 5, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                }
+            }
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
+            }
+
+            if (selbtn < 0) {
+                selbtn = themeCount - 1;
+            }
+            if (selbtn > themeCount - 1) {
+                selbtn = 1;
+            }
+
+            C2D_SceneBegin(bottom);
+            DrawText(": Select\n: Navigate\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+
+            if (hidKeysDown() & KEY_A) {
+                currentTheme = selbtn;
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 5;
             }
         }
         
