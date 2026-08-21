@@ -83,25 +83,29 @@ typedef struct {
     u32 themecolor;
     u32 textcolor;
     u32 textcolorinvert;
+    u32 btncolor;
+    u32 selbtncolor;
 } ThemeList;
 
-ThemeList themes[10];
+ThemeList themes[50];
 int themeCount = 0;
 int currentTheme = 0;
 
-void append_theme(char* name, u32 themecolor, u32 textcolor, u32 textcolorinvert) {
+void append_theme(char* name, u32 themecolor, u32 textcolor, u32 textcolorinvert, u32 btncolor, u32 selbtncolor) {
     themes[themeCount].themecolor = themecolor;
     themes[themeCount].textcolor = textcolor;
     themes[themeCount].textcolorinvert = textcolorinvert;
+    themes[themeCount].btncolor = btncolor;
+    themes[themeCount].selbtncolor = selbtncolor;
     sprintf(themes[themeCount].name, name);
     themeCount++;
 }
 
 u32 btncolor(int btn) {
     if (selbtn == btn) {
-        return C2D_Color32(0, 0, 255, 255);
+        return themes[currentTheme].selbtncolor;
     } else {
-        return C2D_Color32(0, 0, 170, 255);
+        return themes[currentTheme].btncolor;
     }
 }
 
@@ -123,15 +127,15 @@ int main(int argc, char* argv[])
 
 	u32 *soc_buffer = memalign(0x1000, 0x100000);
     if (!soc_buffer) {
-        printf("The soc buffer could not be allocated.");
+        show_error("The soc_buffer could not be allocated.");
     }
     if (socInit(soc_buffer, 0x100000) != 0) {
-        printf("socInit failed.");
+        show_error("socInit failed.");
     }
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        printf("Failed to create socket.");
+        show_error("Could not create socket.");
     }
 
     struct sockaddr_in server;
@@ -141,17 +145,18 @@ int main(int argc, char* argv[])
     server.sin_addr.s_addr = inet_addr(SERVER_URL);
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) != 0) {
-        printf("Failed to connect to server.");
+        show_error("Aurorachat failed to connect to the server.\nPlease close the app and try again, if the issue persists, the servers may be down.");
     }
 
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
 
-    append_theme("White", C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255));
-    append_theme("Black", C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
-    append_theme("Deep Green", C2D_Color32(17, 44, 27, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
-    append_theme("Bright Aqua", C2D_Color32(80, 226, 190, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255));
+    append_theme("Light", C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 0, 170, 255), C2D_Color32(0, 0, 255, 255));
+    append_theme("Dark", C2D_Color32(0, 0, 0, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 0, 170, 255), C2D_Color32(0, 0, 255, 255));
+    append_theme("Blue + Green", C2D_Color32(19, 22, 137, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 63, 53, 255), C2D_Color32(0, 138, 116, 255));
+    append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
+    append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
 	// Main loop
 	while (aptMainLoop())
@@ -478,6 +483,8 @@ int main(int argc, char* argv[])
                     scene = 4;
                 }
             }
+
+            C2D_SceneBegin(bottom);
         }
 
         if (scene == 3) {
@@ -588,8 +595,8 @@ int main(int argc, char* argv[])
             C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
             C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
 
-            DrawText("Main Menu", 167, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
-            DrawText("Chat", 170, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Main Menu", 158, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Chat", 174, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
             DrawText("Themes", 165, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             if (hidKeysDown() & KEY_DOWN) {
@@ -614,6 +621,7 @@ int main(int argc, char* argv[])
                 }
                 if (selbtn == 2) {
                     scene = 6;
+                    selbtn = currentTheme;
                 }
             }
         }
@@ -621,13 +629,16 @@ int main(int argc, char* argv[])
         if (scene == 6) {
             C2D_SceneBegin(top);
 
+            int menuscroll = 0;
+            menuscroll = 50 * selbtn;
+
             for (int i = 0; i < themeCount; i++) {
-                C2D_DrawRectSolid(0, 50 * i, 0, 500, 50, btncolor(i));
+                C2D_DrawRectSolid(0, 50 * i - menuscroll, 0, 500, 50, btncolor(i));
 
                 if (i != 0) {
-                    DrawText(themes[i].name, 5, 50 * i + 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                    DrawText(themes[i].name, 5, 50 * i + 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
                 } else {
-                    DrawText(themes[i].name, 5, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                    DrawText(themes[i].name, 5, 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
                 }
             }
 
