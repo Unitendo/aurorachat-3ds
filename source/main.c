@@ -594,10 +594,12 @@ int main(int argc, char* argv[])
             C2D_DrawRectSolid(0, 0, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
             C2D_DrawRectSolid(0, 50, 0, 500, 50, btncolor(1));
             C2D_DrawRectSolid(0, 100, 0, 500, 50, btncolor(2));
+            C2D_DrawRectSolid(0, 150, 0, 500, 50, btncolor(3));
 
             DrawText("Main Menu", 158, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
             DrawText("Chat", 174, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
             DrawText("Themes", 165, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Log Out", 163, 165, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             if (hidKeysDown() & KEY_DOWN) {
                 selbtn++;
@@ -622,6 +624,9 @@ int main(int argc, char* argv[])
                 if (selbtn == 2) {
                     scene = 6;
                     selbtn = currentTheme;
+                }
+                if (selbtn == 3) {
+                    scene = 2;
                 }
             }
         }
