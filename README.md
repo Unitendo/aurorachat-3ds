@@ -1,10 +1,39 @@
-# Aurorachat for Nintendo 3DS
-## Experimental v7 Branch
+<h1 align="center">Welcome to the aurorachat repository!</h1>
+This is the 3DS client for Aurorachat.<br>
+For more clients and stuff, see the <a href="https://github.com/Unitendo/aurorachat">main repo</a>.
+The license, code of conduct, and security/contributing guidelines in the main repo also apply here.
 
-This branch contains the code for Aurorachat: Nintendo 3DS Edition's version 7 adaptation. The changes provided are experimental and have not undergone proper testing.
+<br>This repository is <b>open</b> for contributions! If you'd like to, you may open a PR or an issue, contributing helps us as we develop aurorachat!
 
-# Can I help development of this branch?
-Of course! You can submit feature requests, bugfixes, and more in the Issues and Pull request sections individually.
+<h1 align="center">How to build aurorachat</h1>
 
-# When will this be released?
-The current absolute deadline for release is September 16th, but we expect to release our changes sooner.
+Install devkitpro with the 3DS development libraries and make, then execute the following commands based on your OS:
+
+Windows:
+```sh
+pacman -S 3ds-opusfile
+git clone https://github.com/Unitendo/aurorachat-3ds
+cd aurorachat-3ds
+make
+make cia
+```
+
+Arch Linux or other distros with pacman:
+```sh
+sudo pacman -S 3ds-opusfile
+git clone https://github.com/Unitendo/aurorachat-3ds
+cd aurorachat-3ds
+make
+make cia
+```
+
+Other Linux distros without pacman:
+```sh
+sudo dkp-pacman -S 3ds-opusfile
+git clone https://github.com/Unitendo/aurorachat-3ds
+cd aurorachat-3ds
+make
+make cia
+```
+
+(At least that's what I think you gotta do)
