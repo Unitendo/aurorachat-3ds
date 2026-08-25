@@ -31,42 +31,43 @@ include $(DEVKITARM)/3ds_rules
 #     - icon.png
 #     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
+TARGET		:=	aurorachat
 BUILD		:=	build
 SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=	include
 GRAPHICS	:=	gfx
 GFXBUILD	:=	$(BUILD)
-ROMFS		:=	romfs
-GFXBUILD	:=	$(ROMFS)/gfx
-APP_TITLE   :=  aurorachat
-APP_AUTHOR  :=  The team at Startendo
-APP_DESCRIPTION  :=  A real-time chatting app for the Nintendo 3DS
-ICON		:= meta/icon.png
+#ROMFS		:=	romfs
+#GFXBUILD	:=	$(ROMFS)/gfx
+ICON := meta/icon.png
+APP_TITLE := Aurorachat (Experimental)
+APP_DESCRIPTION := Experimental version: v7
+APP_AUTHOR := Startendo
+
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS	:=	-g -Wall -O2 -mword-relocations \
+CFLAGS	:=	-g -Wall -Wno-address -Wno-format-truncation -O2 -mword-relocations \
 			-ffunction-sections \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -D__3DS__ `$(PREFIX)pkg-config opusfile --cflags`
+CFLAGS	+=	$(INCLUDE) -D__3DS__
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lcitro2d -lcitro3d -lctru -lm `$(PREFIX)pkg-config opusfile --libs` 
+LIBS	:= -lcitro2d -lcitro3d -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(PORTLIBS) $(CTRULIB)
+LIBDIRS	:= $(CTRULIB)
 
 
 #---------------------------------------------------------------------------------
@@ -183,26 +184,8 @@ endif
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(TARGET).cia $(GFXBUILD)
-	@cd cia-builder
-	@rm -fr icon.icn banner.bnr
-#---------------------------------------------------------------------------------
-ifneq ($(OS),Windows_NT)
-UNAME_S := $(shell uname -s)
-endif
-cia:
-	@echo "If this fails, run make with no parameters first."
-ifeq ($(OS),Windows_NT)
-	@./cia-builder/ciabuilder.bat
-else
-ifeq ($(UNAME_S),Linux)
-	@cd ./cia-builder && sh ./ciabuilder.sh
-endif
-ifeq ($(UNAME_S),Darwin)
-	@cd ./cia-builder && sh ./ciabuilder.sh
-endif
-endif
-	@echo "Built $(TARGET).cia"
+	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(GFXBUILD)
+
 #---------------------------------------------------------------------------------
 $(GFXBUILD)/%.t3x	$(BUILD)/%.h	:	%.t3s
 #---------------------------------------------------------------------------------
