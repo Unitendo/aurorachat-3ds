@@ -1,7 +1,10 @@
 <div align="center">
   <img src="https://github.com/Unitendo/aurorachat-3ds/blob/main/meta/banner.png" align="center"></img>
   <p align="center">A chatting application for Homwbrewed Nintendo consoles</p>
-  Welcome to the official repository for the Nintendo 3DS client for [aurorachat!](https://github.com/Unitendo/aurorachat)
+</div>
+
+<div align="center">
+  Welcome to the official repository for the Nintendo 3DS client for aurorachat!
 </div>
 
 <h1 align="center">How to build aurorachat</h1>
