@@ -36,9 +36,17 @@ typedef struct {
 MessageHistory history[800];
 int msgCount = 0;
 
+void remove_message(int index) {
+    if (index < 0 || index >= msgCount) return;
+
+    memmove(&history[index], &history[index + 1], (msgCount - index - 1) * sizeof(MessageHistory));
+
+    msgCount--;
+}
+
 void append_message(char* username, char* message) {
     if (msgCount > 798) {
-        msgCount = 0;
+        remove_message(0);
     }
     snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
@@ -427,13 +435,17 @@ int main(int argc, char* argv[])
             char totalmessage[500];
             for (int i = 0; i < msgCount; i++) {
                 snprintf(totalmessage, 500, "<%s>: %s", history[i].username, history[i].message);
-                DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
-                y += 15;
-                int timesToExt = 0;
-                timesToExt = strlen(totalmessage) / 39;
-                for (int i = 0; i < timesToExt; i++) {
-                    y += 14;
-                }
+
+                int timesToExt = strlen(totalmessage) / 39;
+                int lineH = 15 + timesToExt * 14;
+
+                if (y + lineH >= 0 && y <= 240)
+                    DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+
+                y += lineH;
+
+                if (y > 240)
+                    break;
             }
 
             C2D_DrawRectSolid(0, 0, 0, 600, 29, themes[currentTheme].themecolor);
