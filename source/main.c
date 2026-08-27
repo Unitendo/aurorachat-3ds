@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
-    sbuffer = C2D_TextBufNew(4096);
+    sbuffer = C2D_TextBufNew(300000);
 
 	u32 *soc_buffer = memalign(0x1000, 0x100000);
     if (!soc_buffer) {
@@ -609,9 +609,9 @@ int main(int argc, char* argv[])
             }
 
             if (selbtn < 1) {
-                selbtn = 2;
+                selbtn = 3;
             }
-            if (selbtn > 2) {
+            if (selbtn > 3) {
                 selbtn = 1;
             }
 
