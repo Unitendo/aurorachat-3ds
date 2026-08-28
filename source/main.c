@@ -79,6 +79,8 @@ bool die = false;
 char servername[30] = {0};
 char* roomname = "general";
 
+char motd[1000] = {0};
+
 static char buffer[4096];
 static size_t bufferlen = 0;
 
@@ -116,6 +118,8 @@ u32 btncolor(int btn) {
         return themes[currentTheme].btncolor;
     }
 }
+
+int motdFrameCounter = 0;
 
 
 
@@ -213,10 +217,9 @@ int main(int argc, char* argv[])
     char *param1 = strtok(NULL, "|");
     char *param2 = strtok(NULL, "|");
     
-    if (cmd && param1 && param2) {
+    if (cmd && param1) {
         
         if (!strcmp(cmd, "msg")) {
-			printf("<%s>: %s\n", param1, param2);
             append_message(param1, param2);
             char totalmessage[500];
             snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
@@ -230,6 +233,10 @@ int main(int argc, char* argv[])
 
         if (!strcmp(cmd, "hello")) {
             sprintf(servername, "%s", param2);
+		}
+
+        if (!strcmp(cmd, "motd")) {
+            sprintf(motd, "%s", param1);
 		}
 
         if (!strcmp(cmd, "ipbanned")) {
@@ -368,11 +375,12 @@ int main(int argc, char* argv[])
             }
             if (hidKeysUp() & KEY_A) {
                 if (selbtn == 3) {
-                    char sender[80];
-                    sprintf(sender, "login|%s|%s|\njoin|general|\nhistory|1000\n", username, password);
+                    char sender[200];
+                    sprintf(sender, "login|%s|%s|\njoin|general|\nhistory|1000\nmotd|\n", username, password);
 			        send(sock, sender, strlen(sender), flags);
                     loggingIn = true;
                     scene = 5;
+                    selbtn = 1;
                 }
             }
         }
@@ -404,11 +412,12 @@ int main(int argc, char* argv[])
             }
             if (hidKeysUp() & KEY_A) {
                 if (selbtn == 3) {
-                    char sender[140];
-                    sprintf(sender, "register|%s|%s|\nlogin|%s|%s|\njoin|general|\nhistory|1000|\n", username, password, username, password);
+                    char sender[200];
+                    sprintf(sender, "register|%s|%s|\nlogin|%s|%s|\njoin|general|\nhistory|1000|\nmotd\n", username, password, username, password);
 			        send(sock, sender, strlen(sender), flags);
                     registering = true;
                     scene = 5;
+                    selbtn = 1;
                 }
             }
         }
@@ -460,6 +469,7 @@ int main(int argc, char* argv[])
 
             if (hidKeysUp() & KEY_B) {
                 scene = 5;
+                selbtn = 1;
             }
         }
 
@@ -629,6 +639,9 @@ int main(int argc, char* argv[])
 
             C2D_SceneBegin(bottom);
 
+            if (motd)
+                DrawText(motd, 5, 5, 0, 0.6, 0.6, themes[currentTheme].textcolor, true);
+
             if (hidKeysDown() & KEY_A) {
                 if (selbtn == 1) {
                     scene = 1;
@@ -681,6 +694,11 @@ int main(int argc, char* argv[])
             }
             if (hidKeysDown() & KEY_B) {
                 scene = 5;
+                selbtn = 1;
+            }
+
+            if (motdFrameCounter >= 3600) {
+                send(sock, "motd|\n", strlen("motd|\n"), flags);
             }
         }
         
