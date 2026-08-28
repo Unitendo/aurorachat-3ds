@@ -700,6 +700,7 @@ int main(int argc, char* argv[])
 
         if (motdFrameCounter >= 3600) {
             send(sock, "motd|\n", strlen("motd|\n"), flags);
+            motdFrameCounter = 0;
         }
         
 
