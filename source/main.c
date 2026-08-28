@@ -696,10 +696,10 @@ int main(int argc, char* argv[])
                 scene = 5;
                 selbtn = 1;
             }
+        }
 
-            if (motdFrameCounter >= 3600) {
-                send(sock, "motd|\n", strlen("motd|\n"), flags);
-            }
+        if (motdFrameCounter >= 3600) {
+            send(sock, "motd|\n", strlen("motd|\n"), flags);
         }
         
 
