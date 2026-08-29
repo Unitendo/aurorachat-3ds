@@ -10,6 +10,94 @@
 #define SERVER_URL "104.236.25.60"
 #define SOCKET_PORT "7070"
 
+
+void show_error(const char* errtext) {
+    errorConf err;
+    errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_EN);
+    errorText(&err, errtext);
+    errorDisp(&err);
+}
+
+
+
+// Image loading
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+static u32 next_pow2(u32 n) {
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n++;
+    return n;
+}
+
+static u32 clamp(u32 n, u32 min, u32 max) {
+    if (n < min) return min;
+    if (n > max) return max;
+    return n;
+}
+
+static u32 rgba_to_abgr(u32 px) {
+    u8 r = (px >> 24) & 0xFF;
+    u8 g = (px >> 16) & 0xFF;
+    u8 b = (px >> 8) & 0xFF;
+    u8 a = px & 0xFF;
+    return (a << 24) | (b << 16) | (g << 8) | r;
+}
+
+C2D_Image load_png(const char *path) {
+    int width, height, channels;
+    u32 *rgba_raw = (u32 *)stbi_load(path, &width, &height, &channels, 4);
+    if (!rgba_raw) {
+        show_error("Image decoding failed on an image.\nPerhaps it couldn't be found?");
+    }
+
+    u32 px_count = width * height;
+    
+    C3D_Tex *tex = (C3D_Tex *)malloc(sizeof(C3D_Tex));
+    Tex3DS_SubTexture *subtex = (Tex3DS_SubTexture *)malloc(sizeof(Tex3DS_SubTexture));
+
+    u32 tex_width = clamp(next_pow2(width), 64, 1024);
+    u32 tex_height = clamp(next_pow2(height), 64, 1024);
+
+    C3D_TexInit(tex, tex_width, tex_height, GPU_RGBA8);
+    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_NEAREST);
+
+    subtex->width = width;
+    subtex->height = height;
+    subtex->left = 0.0f;
+    subtex->top = 1.0f;
+    subtex->right = (float)width / (float)tex_width;
+    subtex->bottom = 1.0f - ((float)height / (float)tex_height);
+
+    memset(tex->data, 0, px_count * 4);
+    for (u32 i = 0; i < height; i++) {
+        for (u32 j = 0; j < width; j++) {
+            u32 src_idx = i * width + j;
+            u32 abgr_px = rgba_to_abgr(rgba_raw[src_idx]);
+
+            u32 dst_offset = ((((j >> 3) * (tex_width >> 3) + (i >> 3)) << 6) + ((i & 1) | ((j & 1) << 1) | ((i & 2) << 1) | ((j & 2) << 2) | ((i & 4) << 2) | ((j & 4) << 3)));
+            
+            ((u32 *)tex->data)[dst_offset] = abgr_px;
+        }
+    }
+
+    free(rgba_raw);
+
+    C2D_Image image;
+    image.tex = tex;
+    image.subtex = subtex;
+    return image;
+}
+
+
+
+
+
 C2D_TextBuf sbuffer;
 C2D_Text stext;
 
@@ -51,13 +139,6 @@ void append_message(char* username, char* message) {
     snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
     msgCount += 1;
-}
-
-void show_error(const char* errtext) {
-    errorConf err;
-    errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_EN);
-    errorText(&err, errtext);
-    errorDisp(&err);
 }
 
 int scene = 2;
@@ -128,6 +209,8 @@ int motdFrameCounter = 0;
 
 int main(int argc, char* argv[])
 {
+    fsInit();
+    romfsInit();
 	gfxInitDefault();
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
@@ -430,13 +513,6 @@ int main(int argc, char* argv[])
 
 		C2D_SceneBegin(top);
 
-        if (hidKeysHeld() & KEY_UP) {
-            chatscroll += 3;
-        }
-        if (hidKeysHeld() & KEY_DOWN) {
-            chatscroll -= 3;
-        }
-
 
         if (scene == 1) {
             C2D_SceneBegin(top);
@@ -467,9 +543,18 @@ int main(int argc, char* argv[])
             C2D_SceneBegin(bottom);
             DrawText(": Send message\n: Scroll chat\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
 
+            C2D_DrawImageAt(img, 0, 0, 0, NULL, 1.0f, 1.0f);
+
             if (hidKeysUp() & KEY_B) {
                 scene = 5;
                 selbtn = 1;
+            }
+
+            if (hidKeysHeld() & KEY_UP) {
+                chatscroll += 3;
+            }
+            if (hidKeysHeld() & KEY_DOWN) {
+                chatscroll -= 3;
             }
         }
 

@@ -41,8 +41,8 @@ GFXBUILD	:=	$(BUILD)
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(ROMFS)/gfx
 ICON := meta/icon.png
-APP_TITLE := Aurorachat (Experimental)
-APP_DESCRIPTION := Experimental version: v7
+APP_TITLE := Aurorachat
+APP_DESCRIPTION := A chatting app for Homebrewed Nintendo consoles
 APP_AUTHOR := Startendo
 
 #---------------------------------------------------------------------------------
