@@ -543,8 +543,6 @@ int main(int argc, char* argv[])
             C2D_SceneBegin(bottom);
             DrawText(": Send message\n: Scroll chat\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
 
-            C2D_DrawImageAt(img, 0, 0, 0, NULL, 1.0f, 1.0f);
-
             if (hidKeysUp() & KEY_B) {
                 scene = 5;
                 selbtn = 1;
