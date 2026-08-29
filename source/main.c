@@ -267,7 +267,6 @@ int main(int argc, char* argv[])
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
     append_room("general");
-    append_room("general");
     append_room("bots");
 
     append_room("Type a room name");
