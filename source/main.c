@@ -182,6 +182,19 @@ ThemeList themes[50];
 int themeCount = 0;
 int currentTheme = 0;
 
+typedef struct {
+    char name[30];
+} RoomList;
+
+RoomList rooms[10];
+int roomCount = 0;
+int currentRoomID = 0;
+
+void append_room(char* name) {
+    sprintf(rooms[roomCount].name, name);
+    roomCount++;
+}
+
 void append_theme(char* name, u32 themecolor, u32 textcolor, u32 textcolorinvert, u32 btncolor, u32 selbtncolor) {
     themes[themeCount].themecolor = themecolor;
     themes[themeCount].textcolor = textcolor;
@@ -252,6 +265,12 @@ int main(int argc, char* argv[])
     append_theme("Blue + Green", C2D_Color32(19, 22, 137, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 63, 53, 255), C2D_Color32(0, 138, 116, 255));
     append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
+
+    append_room("general");
+    append_room("bots");
+
+    append_room("Type a room name");
+    append_room("DM a username");
 
 	// Main loop
 	while (aptMainLoop())
@@ -430,6 +449,49 @@ int main(int argc, char* argv[])
 		    }
         }
 
+        if (scene == 7) {
+		    if (hidKeysDown() & KEY_A && (selbtn == roomCount - 2)) {
+			    char croomname[30];
+			    SwkbdState swkbd;
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 30);
+                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                swkbdSetHintText(&swkbd, "Type a custom room name...");
+
+			    swkbdInputText(&swkbd, croomname, sizeof(croomname));
+
+			    char sender[150];
+
+			    memset(history, 0, sizeof(history));
+                msgCount = 0;
+                chatscroll = 150;
+                append_message("Local", "Welcome to aurorachat!");
+                sprintf(sender, "join|%s|\nhistory|1000|\n", croomname);
+                send(sock, sender, strlen(sender), flags);
+                sprintf(roomname, "%s", croomname);
+                scene = 1;
+		    }
+            if (hidKeysDown() & KEY_A && (selbtn == roomCount - 1)) {
+			    char croomname[30];
+			    SwkbdState swkbd;
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 30);
+                swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
+                swkbdSetHintText(&swkbd, "Type someone's username...");
+
+			    swkbdInputText(&swkbd, croomname, sizeof(croomname));
+
+			    char sender[150];
+
+			    memset(history, 0, sizeof(history));
+                msgCount = 0;
+                chatscroll = 150;
+                append_message("Local", "Welcome to DMs! Please note that both users must be actively DMing each other at the same time for it to work.");
+                sprintf(sender, "join|@%s|\nhistory|1000|\n", croomname);
+                send(sock, sender, strlen(sender), flags);
+                sprintf(roomname, "@%s", croomname);
+                scene = 1;
+		    }
+        }
+
 
         if (scene == 3) {
             if (hidKeysDown() & KEY_A) {
@@ -541,10 +603,10 @@ int main(int argc, char* argv[])
                 DrawText(serverinfo, 5, 0, 0, 0.7, 0.7, themes[currentTheme].textcolor, true);
 
             C2D_SceneBegin(bottom);
-            DrawText(": Send message\n: Scroll chat\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+            DrawText(": Send message\n: Scroll chat\n: Return to room selection", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
 
             if (hidKeysUp() & KEY_B) {
-                scene = 5;
+                scene = 7;
                 selbtn = 1;
             }
 
@@ -553,6 +615,58 @@ int main(int argc, char* argv[])
             }
             if (hidKeysHeld() & KEY_DOWN) {
                 chatscroll -= 3;
+            }
+        }
+
+        if (scene == 7) {
+            C2D_SceneBegin(top);
+
+            int menuscroll = 0;
+            menuscroll = 50 * selbtn;
+
+            for (int i = 0; i < roomCount; i++) {
+                C2D_DrawRectSolid(0, 50 * i - menuscroll, 0, 500, 50, btncolor(i));
+
+                if (i != 0) {
+                    DrawText(rooms[i].name, 5, 50 * i + 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                } else {
+                    DrawText(rooms[i].name, 5, 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+                }
+            }
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
+            }
+
+            if (selbtn < 0) {
+                selbtn = roomCount - 1;
+            }
+            if (selbtn > roomCount - 1) {
+                selbtn = 0;
+            }
+
+            C2D_SceneBegin(bottom);
+            DrawText(": Select\n: Navigate\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+
+            if (hidKeysDown() & KEY_A) {
+                if (selbtn != roomCount - 1) {
+                    char sender[150];
+                    memset(history, 0, sizeof(history));
+                    msgCount = 0;
+                    chatscroll = 150;
+                    append_message("Local", "Welcome to aurorachat!");
+                    sprintf(sender, "join|%s|\nhistory|1000|\n", rooms[selbtn].name);
+                    send(sock, sender, strlen(sender), flags);
+                    roomname = rooms[selbtn].name;
+                    scene = 1;
+                }
+            }
+            if (hidKeysDown() & KEY_B) {
+                scene = 5;
+                selbtn = 1;
             }
         }
 
@@ -727,7 +841,8 @@ int main(int argc, char* argv[])
 
             if (hidKeysDown() & KEY_A) {
                 if (selbtn == 1) {
-                    scene = 1;
+                    scene = 7;
+                    selbtn = 0;
                 }
                 if (selbtn == 2) {
                     scene = 6;
@@ -786,6 +901,7 @@ int main(int argc, char* argv[])
             motdFrameCounter = 0;
         }
         
+        motdFrameCounter++;
 
 
 		u32 kDown = hidKeysDown();
