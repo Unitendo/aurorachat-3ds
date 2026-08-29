@@ -158,7 +158,7 @@ bool registering = false;
 bool die = false;
 
 char servername[30] = {0};
-char* roomname = "general";
+char roomname[40] = {0};
 
 char motd[1000] = {0};
 
@@ -266,6 +266,7 @@ int main(int argc, char* argv[])
     append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
+    append_room("general");
     append_room("general");
     append_room("bots");
 
@@ -660,7 +661,7 @@ int main(int argc, char* argv[])
                     append_message("Local", "Welcome to aurorachat!");
                     sprintf(sender, "join|%s|\nhistory|1000|\n", rooms[selbtn].name);
                     send(sock, sender, strlen(sender), flags);
-                    roomname = rooms[selbtn].name;
+                    sprintf(roomname, "%s", rooms[selbtn].name);
                     scene = 1;
                 }
             }
