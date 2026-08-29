@@ -266,11 +266,12 @@ int main(int argc, char* argv[])
     append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
-    append_room("general");
-    append_room("bots");
 
     append_room("Type a room name");
     append_room("DM a username");
+
+    append_room("general");
+    append_room("bots");
 
 	// Main loop
 	while (aptMainLoop())
@@ -450,7 +451,7 @@ int main(int argc, char* argv[])
         }
 
         if (scene == 7) {
-		    if (hidKeysDown() & KEY_A && (selbtn == roomCount - 2)) {
+		    if (hidKeysDown() & KEY_A && (selbtn == 0)) {
 			    char croomname[30];
 			    SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 30);
@@ -470,7 +471,7 @@ int main(int argc, char* argv[])
                 sprintf(roomname, "%s", croomname);
                 scene = 1;
 		    }
-            if (hidKeysDown() & KEY_A && (selbtn == roomCount - 1)) {
+            if (hidKeysDown() & KEY_A && (selbtn == 1)) {
 			    char croomname[30];
 			    SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, 30);
@@ -652,7 +653,7 @@ int main(int argc, char* argv[])
             DrawText(": Select\n: Navigate\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
 
             if (hidKeysDown() & KEY_A) {
-                if (selbtn != roomCount - 1) {
+                if (selbtn != 0 && selbtn != 1) {
                     char sender[150];
                     memset(history, 0, sizeof(history));
                     msgCount = 0;
