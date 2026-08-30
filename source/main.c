@@ -344,7 +344,6 @@ int main(int argc, char* argv[])
     append_theme("Blue + Green", C2D_Color32(19, 22, 137, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 63, 53, 255), C2D_Color32(0, 138, 116, 255));
     append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
-    append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
 
     append_room("Type a room name");
