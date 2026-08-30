@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://github.com/Unitendo/aurorachat-3ds/blob/main/meta/banner.png" align="center"></img>
-  <p align="center">A chatting application for Homwbrewed Nintendo consoles</p>
+  <p align="center">A chatting application for Homebrewed Nintendo consoles</p>
 </div>
 
 <div align="center">
