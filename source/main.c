@@ -222,6 +222,7 @@ int motdFrameCounter = 0;
 char autologin_username[30];
 char autologin_password[30];
 bool autologin_ready = false;
+int autologin_enabled = 1;
 
 
 
@@ -260,10 +261,14 @@ void readConfig() {
     char *param4 = strtok(NULL, "|");
 
     currentTheme = atoi(param1);
+    autologin_enabled = atoi(param4);
+
     if (param2 != NULL && (param3 != NULL)) {
-        sprintf(autologin_username, "%s", param2);
-        sprintf(autologin_password, "%s", param3);
-        autologin_ready = true;
+        if (autologin_enabled == 1) {
+            sprintf(autologin_username, "%s", param2);
+            sprintf(autologin_password, "%s", param3);
+            autologin_ready = true;
+        }
     }
 
     fclose(f);
@@ -279,7 +284,7 @@ void writeConfig() {
     }
 
     char settings[80];
-    sprintf(settings, "%d|%s|%s|0|\n", currentTheme, username, password);
+    sprintf(settings, "%d|%s|%s|%d|\n", currentTheme, username, password, autologin_enabled);
     fprintf(f, settings);
     fclose(f);
 }
@@ -912,7 +917,7 @@ int main(int argc, char* argv[])
             DrawText("Main Menu", 158, 15, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
             DrawText("Chat", 174, 65, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
             DrawText("Themes", 165, 115, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
-            DrawText("Log Out", 163, 165, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Settings", 163, 165, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
 
             if (hidKeysDown() & KEY_DOWN) {
                 selbtn++;
@@ -943,7 +948,8 @@ int main(int argc, char* argv[])
                     selbtn = currentTheme;
                 }
                 if (selbtn == 3) {
-                    scene = 2;
+                    scene = 8;
+                    selbtn = 1;
                 }
             }
         }
@@ -990,6 +996,120 @@ int main(int argc, char* argv[])
                 selbtn = 1;
             }
         }
+
+
+
+
+
+        if (scene == 8) {
+            C2D_SceneBegin(top);
+
+            int menuscroll = 50 * selbtn;
+
+            C2D_DrawRectSolid(0, 0 - menuscroll, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50 - menuscroll, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100 - menuscroll, 0, 500, 50, btncolor(2));
+            C2D_DrawRectSolid(0, 150 - menuscroll, 0, 500, 50, btncolor(3));
+
+            DrawText("Settings", 155, 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            if (autologin_enabled == 1) {
+                DrawText("Autologin: ON", 5, 65 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            } else {
+                DrawText("Autologin: OFF", 5, 65 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            }
+            DrawText("Information", 5, 115 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Log Out", 5, 165 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
+            }
+
+            if (selbtn < 1) {
+                selbtn = 3;
+            }
+            if (selbtn > 3) {
+                selbtn = 1;
+            }
+
+            C2D_SceneBegin(bottom);
+
+            DrawText(": Select\n: Navigate\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+
+            if (hidKeysUp() & KEY_A) {
+                if (selbtn == 1) {
+                    if (autologin_enabled == 0) {
+                        autologin_enabled = 1;
+                    } else {
+                        autologin_enabled = 0;
+                    }
+                    writeConfig();
+                }
+                if (selbtn == 2) {
+                    scene = 9;
+                    selbtn = 1;
+                }
+                if (selbtn == 3) {
+                    scene = 2;
+                }
+            }
+
+            if (hidKeysDown() & KEY_B) {
+                scene = 5;
+            }
+        }
+
+        if (scene == 9) {
+            C2D_SceneBegin(top);
+
+            int menuscroll = 50 * selbtn;
+
+            C2D_DrawRectSolid(0, 0 - menuscroll, 0, 500, 50, C2D_Color32(0, 0, 20, 255));
+            C2D_DrawRectSolid(0, 50 - menuscroll, 0, 500, 50, btncolor(1));
+            C2D_DrawRectSolid(0, 100 - menuscroll, 0, 500, 50, btncolor(2));
+            C2D_DrawRectSolid(0, 150 - menuscroll, 0, 500, 50, btncolor(3));
+            C2D_DrawRectSolid(0, 200 - menuscroll, 0, 500, 50, btncolor(4));
+
+            DrawText("Information", 155, 15 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Client Version: v7.1", 5, 65 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Publish Date: TBD", 5, 115 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Developed by Virtualle", 5, 165 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+            DrawText("Server Protocol: v7", 5, 215 - menuscroll, 0, 0.6, 0.6, themes[currentTheme].textcolorinvert, true);
+
+            if (hidKeysDown() & KEY_DOWN) {
+                selbtn++;
+            }
+            if (hidKeysDown() & KEY_UP) {
+                selbtn--;
+            }
+
+            if (selbtn < 1) {
+                selbtn = 4;
+            }
+            if (selbtn > 4) {
+                selbtn = 1;
+            }
+
+            C2D_SceneBegin(bottom);
+
+            DrawText(": Navigate\n: Return to menu", 5, 5, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+
+            if (hidKeysDown() & KEY_B) {
+                scene = 8;
+            }
+        }
+
+
+
+
+
+
+
+
+
+
 
         if (motdFrameCounter >= 3600) {
             send(sock, "motd|\n", strlen("motd|\n"), flags);
