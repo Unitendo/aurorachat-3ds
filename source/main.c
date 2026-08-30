@@ -455,18 +455,21 @@ int main(int argc, char* argv[])
                         scene = 2;
                         registering = false;
                         goto freedom;
+                        selbtn = 1;
                     }
                     if (!strcmp(errRes, "register_failure")) {
                         show_error("Registration failed.\nTry a different username perhaps?");
                         scene = 2;
                         registering = false;
                         goto freedom;
+                        selbtn = 1;
                     }
                     if (!strcmp(errRes, "args_bad")) {
                         show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
                         scene = 2;
                         registering = false;
                         goto freedom;
+                        selbtn = 1;
                     }
                 }
 
@@ -476,18 +479,19 @@ int main(int argc, char* argv[])
                         scene = 2;
                         loggingIn = false;
                         goto freedom;
+                        selbtn = 1;
                     }
                     if (!strcmp(errRes, "args_bad")) {
                         show_error("The username or password you specified are invalid.\nPlease try again with new credentials.");
                         scene = 2;
                         loggingIn = false;
                         goto freedom;
+                        selbtn = 1;
                     }
                 }
 
                 freedom:
                 errcde = 0;
-                selbtn = 1;
     }
 
 
