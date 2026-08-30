@@ -219,6 +219,85 @@ int motdFrameCounter = 0;
 
 
 
+char autologin_username[30];
+char autologin_password[30];
+bool autologin_ready = false;
+
+
+
+
+/*
+
+    Config Handlers
+
+*/
+
+void readConfig() {
+    FILE *f = fopen("sdmc:/3ds/aurorachat-v7/config.txt", "r");
+    if (f == NULL) {
+        return;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    if (size < 0) {
+        fclose(f); return;
+    }
+    fseek(f, 0, SEEK_SET);
+
+    char *buf = malloc(size + 1);
+    if (!buf) {
+        fclose(f); return;
+    }
+
+    size_t n = fread(buf, 1, size, f);
+    buf[n] = '\0';
+    fclose(f);
+
+    char *param1 = strtok(buf, "|");
+    char *param2 = strtok(NULL, "|");
+    char *param3 = strtok(NULL, "|");
+    char *param4 = strtok(NULL, "|");
+
+    currentTheme = atoi(param1);
+    if (param2 != NULL && (param3 != NULL)) {
+        sprintf(autologin_username, "%s", param2);
+        sprintf(autologin_password, "%s", param3);
+        autologin_ready = true;
+    }
+
+    fclose(f);
+
+}
+
+void writeConfig() {
+    mkdir("sdmc:/3ds/", 777);
+    mkdir("sdmc:/3ds/aurorachat-v7", 777);
+    FILE *f = fopen("sdmc:/3ds/aurorachat-v7/config.txt", "w");
+    if (f == NULL) {
+        return;
+    }
+
+    char settings[80];
+    sprintf(settings, "%d|%s|%s|0|\n", currentTheme, username, password);
+    fprintf(f, settings);
+    fclose(f);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 int main(int argc, char* argv[])
 {
@@ -265,6 +344,7 @@ int main(int argc, char* argv[])
     append_theme("Blue + Green", C2D_Color32(19, 22, 137, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(0, 63, 53, 255), C2D_Color32(0, 138, 116, 255));
     append_theme("Green + Blue", C2D_Color32(0, 63, 53, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(19, 22, 137, 255), C2D_Color32(19, 22, 180, 255));
     append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
+    append_theme("Aurora Purple", C2D_Color32(108, 0, 152, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(255, 255, 255, 255), C2D_Color32(83, 0, 116, 255), C2D_Color32(0, 0, 0, 255));
 
 
     append_room("Type a room name");
@@ -272,6 +352,8 @@ int main(int argc, char* argv[])
 
     append_room("general");
     append_room("bots");
+
+    readConfig();
 
 	// Main loop
 	while (aptMainLoop())
@@ -527,6 +609,7 @@ int main(int argc, char* argv[])
                     loggingIn = true;
                     scene = 5;
                     selbtn = 1;
+                    writeConfig();
                 }
             }
         }
@@ -564,6 +647,7 @@ int main(int argc, char* argv[])
                     registering = true;
                     scene = 5;
                     selbtn = 1;
+                    writeConfig();
                 }
             }
         }
@@ -705,6 +789,16 @@ int main(int argc, char* argv[])
             }
 
             C2D_SceneBegin(bottom);
+
+            if (autologin_ready) {
+                char sender[200];
+                sprintf(sender, "login|%s|%s|\njoin|general|\nhistory|1000\nmotd|\n", autologin_username, autologin_password);
+			    send(sock, sender, strlen(sender), flags);
+                loggingIn = true;
+                scene = 5;
+                selbtn = 1;
+                autologin_ready = false;
+            }
         }
 
         if (scene == 3) {
@@ -890,6 +984,7 @@ int main(int argc, char* argv[])
 
             if (hidKeysDown() & KEY_A) {
                 currentTheme = selbtn;
+                writeConfig();
             }
             if (hidKeysDown() & KEY_B) {
                 scene = 5;
@@ -913,6 +1008,6 @@ int main(int argc, char* argv[])
 	}
 
 	gfxExit();
-    if (sock != NULL)
+    if (sock >= 0)
         closesocket(sock);
 }
