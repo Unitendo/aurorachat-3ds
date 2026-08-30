@@ -94,10 +94,6 @@ C2D_Image load_png(const char *path) {
     return image;
 }
 
-
-
-
-
 C2D_TextBuf sbuffer;
 C2D_Text stext;
 
@@ -136,6 +132,8 @@ void append_message(char* username, char* message) {
     if (msgCount > 798) {
         remove_message(0);
     }
+    
+
     snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
     msgCount += 1;
@@ -219,6 +217,7 @@ int motdFrameCounter = 0;
 
 
 
+
 char autologin_username[30];
 char autologin_password[30];
 bool autologin_ready = false;
@@ -260,8 +259,14 @@ void readConfig() {
     char *param3 = strtok(NULL, "|");
     char *param4 = strtok(NULL, "|");
 
+    if (!param1 && !param2 && !param3 && !param4) {
+        show_error("There was an error trying to read your saved data.\nPlease log in, change your theme, or toggle autologin to update your settings file.");
+        return;
+    }
+
     currentTheme = atoi(param1);
-    autologin_enabled = atoi(param4);
+    if (param4 != NULL)
+        autologin_enabled = atoi(param4);
 
     if (param2 != NULL && (param3 != NULL)) {
         if (autologin_enabled == 1) {
@@ -1131,6 +1136,7 @@ int main(int argc, char* argv[])
 	}
 
 	gfxExit();
+    fsExit();
     if (sock >= 0)
         closesocket(sock);
 }
