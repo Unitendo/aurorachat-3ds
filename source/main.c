@@ -50,7 +50,31 @@ static u32 rgba_to_abgr(u32 px) {
     return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
+int whatformat(const char *filename) {
+    FILE *f = fopen(filename, "rb");
+    if (!f) return 0;
+
+    unsigned char header[8] = {0};
+    fread(header, 1, 8, f);
+    fclose(f);
+
+    if (header[0] == 0x89 && header[1] == 'P' && header[2] == 'N'  && header[3] == 'G')
+        return 1;
+
+    if (header[0] == 'G' && header[1] == 'I' && header[2] == 'F' && header[3] == '8')
+        return 2;
+
+    return 0;
+}
+
 C2D_Image load_png(const char *path, bool valid) {
+    // stb_image.h currently has numerous issues regarding animated GIFs, we will skip embedding GIFs for now to keep ourselves from crashing.
+    int format = whatformat(path);
+    if (format == 0 || format == 2) {
+        valid = false;
+        goto skip;
+    }
+
     int width, height, channels;
     u32 *rgba_raw = (u32 *)stbi_load(path, &width, &height, &channels, 4);
     if (!rgba_raw) {
@@ -774,7 +798,7 @@ int main(int argc, char* argv[])
                 if (y + lineH >= 0 && y <= 240) {
                     DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
                     if (history[i].hasImage == true)
-                        C2D_DrawImageAtRotated(history[i].image, 50, y + lineH - 15 * 6, 0, 1.570796, NULL, -0.4, 0.4);
+                        C2D_DrawImageAtRotated(history[i].image, 50, y + lineH - 15 * 3, 0, 1.570796, NULL, -0.4, 0.4);
                 }
 
                 y += lineH;
