@@ -798,7 +798,7 @@ int main(int argc, char* argv[])
                 if (y + lineH >= 0 && y <= 240) {
                     DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
                     if (history[i].hasImage == true)
-                        C2D_DrawImageAtRotated(history[i].image, 50, y + lineH - 15 * 2, 0, 1.570796, NULL, 0.4, 0.4);
+                        C2D_DrawImageAtRotated(history[i].image, 50, y + lineH - 15 * 6.5, 0, 1.570796, NULL, 0.4, 0.4);
                 }
 
                 y += lineH;
