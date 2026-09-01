@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <malloc.h>
 #include <citro2d.h>
+#include <curl/curl.h>
 
 #define SERVER_URL "104.236.25.60"
 #define SOCKET_PORT "7070"
@@ -49,11 +50,13 @@ static u32 rgba_to_abgr(u32 px) {
     return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
-C2D_Image load_png(const char *path) {
+C2D_Image load_png(const char *path, bool valid) {
     int width, height, channels;
     u32 *rgba_raw = (u32 *)stbi_load(path, &width, &height, &channels, 4);
     if (!rgba_raw) {
-        show_error("Image decoding failed on an image.\nPerhaps it couldn't be found?");
+        // Image could not be loaded, typically due to the image itself being completely missing.
+        valid = false;
+        goto skip;
     }
 
     u32 px_count = width * height;
@@ -91,8 +94,59 @@ C2D_Image load_png(const char *path) {
     C2D_Image image;
     image.tex = tex;
     image.subtex = subtex;
+    valid = true;
     return image;
+
+    skip:
 }
+
+
+
+
+/*
+
+    Embed Handlers
+
+*/
+
+
+int cGET(const char *url, const char *filename) {
+    CURL *curl = curl_easy_init();
+    if (!curl) return -1;
+
+    FILE *file = fopen(filename, "wb");
+    if (!file) return -1;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0");
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    fclose(file);
+    curl_easy_cleanup(curl);
+
+    return (res == CURLE_OK) ? 0 : -1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 C2D_TextBuf sbuffer;
 C2D_Text stext;
@@ -115,6 +169,8 @@ void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u
 typedef struct {
     char username[40];
     char message[366];
+    C2D_Image image;
+    bool hasImage;
 } MessageHistory;
 
 MessageHistory history[800];
@@ -128,7 +184,7 @@ void remove_message(int index) {
     msgCount--;
 }
 
-void append_message(char* username, char* message) {
+void append_message(char* username, char* message, C2D_Image *image) {
     if (msgCount > 798) {
         remove_message(0);
     }
@@ -136,6 +192,13 @@ void append_message(char* username, char* message) {
 
     snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
+    if (image != NULL) {
+        history[msgCount].image = *image;
+        history[msgCount].hasImage = true;
+    } else {
+        history[msgCount].hasImage = false;
+    }
+
     msgCount += 1;
 }
 
@@ -319,6 +382,7 @@ int main(int argc, char* argv[])
     C2D_Prepare();
     C3D_RenderTarget* top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
 	C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    httpcInit(1 * 1024);
 
     sbuffer = C2D_TextBufNew(300000);
 
@@ -345,6 +409,8 @@ int main(int argc, char* argv[])
         show_error("Aurorachat failed to connect to the server.\nPlease close the app and try again, if the issue persists, the servers may be down.");
     }
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
@@ -363,6 +429,8 @@ int main(int argc, char* argv[])
     append_room("bots");
 
     readConfig();
+    C2D_Image image;
+    bool imagevalid = false;
 
 	// Main loop
 	while (aptMainLoop())
@@ -414,9 +482,24 @@ int main(int argc, char* argv[])
     if (cmd && param1) {
         
         if (!strcmp(cmd, "msg")) {
-            append_message(param1, param2);
+            if (strstr(param2, "/embeds/") != NULL) {
+                cGET(param2, "/3ds/aurorachat-v7/image.png");
+                bool isvalid = true;
+                image = load_png("/3ds/aurorachat-v7/image.png", isvalid);
+                if (isvalid == true) {
+                    imagevalid = true;
+                    append_message(param1, param2, &image);
+                } else {
+                    imagevalid = false;
+                    append_message(param1, param2, NULL);
+                }
+            } else {
+                append_message(param1, param2, NULL);
+            }
+
             char totalmessage[500];
             snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
+
             chatscroll -= 15;
             int timesToExt = 0;
             timesToExt = strlen(totalmessage) / 39;
@@ -560,7 +643,7 @@ int main(int argc, char* argv[])
 			    memset(history, 0, sizeof(history));
                 msgCount = 0;
                 chatscroll = 150;
-                append_message("Local", "Welcome to aurorachat!");
+                append_message("Local", "Welcome to aurorachat!", NULL);
                 sprintf(sender, "join|%s|\nhistory|1000|\n", croomname);
                 send(sock, sender, strlen(sender), flags);
                 sprintf(roomname, "%s", croomname);
@@ -580,7 +663,7 @@ int main(int argc, char* argv[])
 			    memset(history, 0, sizeof(history));
                 msgCount = 0;
                 chatscroll = 150;
-                append_message("Local", "Welcome to DMs! Please note that both users must be actively DMing each other at the same time for it to work.");
+                append_message("Local", "Welcome to DMs! Please note that both users must be actively DMing each other at the same time for it to work.", NULL);
                 sprintf(sender, "join|@%s|\nhistory|1000|\n", croomname);
                 send(sock, sender, strlen(sender), flags);
                 sprintf(roomname, "@%s", croomname);
@@ -684,8 +767,15 @@ int main(int argc, char* argv[])
                 int timesToExt = strlen(totalmessage) / 39;
                 int lineH = 15 + timesToExt * 14;
 
-                if (y + lineH >= 0 && y <= 240)
+                if (history[i].hasImage == true) {
+                    lineH = lineH + 15 * 10;
+                }
+
+                if (y + lineH >= 0 && y <= 240) {
                     DrawText(totalmessage, 5, y, 0, 0.5, 0.5, themes[currentTheme].textcolor, true);
+                    if (history[i].hasImage == true)
+                        C2D_DrawImageAtRotated(history[i].image, 50, y + lineH - 15 * 6, 0, 1.570796, NULL, 0.4, 0.4);
+                }
 
                 y += lineH;
 
@@ -755,7 +845,7 @@ int main(int argc, char* argv[])
                     memset(history, 0, sizeof(history));
                     msgCount = 0;
                     chatscroll = 150;
-                    append_message("Local", "Welcome to aurorachat!");
+                    append_message("Local", "Welcome to aurorachat!", NULL);
                     sprintf(sender, "join|%s|\nhistory|1000|\n", rooms[selbtn].name);
                     send(sock, sender, strlen(sender), flags);
                     sprintf(roomname, "%s", rooms[selbtn].name);
