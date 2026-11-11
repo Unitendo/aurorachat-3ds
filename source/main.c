@@ -8,7 +8,7 @@
 #include <citro2d.h>
 #include <curl/curl.h>
 
-#define SERVER_URL "104.236.25.60"
+#define SERVER_URL "144.217.26.87"
 #define SOCKET_PORT "7070"
 
 
