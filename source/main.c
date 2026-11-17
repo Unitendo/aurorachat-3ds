@@ -7,6 +7,7 @@
 #include <malloc.h>
 #include <citro2d.h>
 #include <curl/curl.h>
+#include <time.h>
 
 #define SERVER_URL "144.217.26.87"
 #define SOCKET_PORT "7070"
@@ -124,9 +125,6 @@ C2D_Image load_png(const char *path, bool valid) {
     skip:
 }
 
-
-
-
 /*
 
     Embed Handlers
@@ -153,25 +151,6 @@ int cGET(const char *url, const char *filename) {
     return (res == CURLE_OK) ? 0 : -1;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 C2D_TextBuf sbuffer;
 C2D_Text stext;
 
@@ -193,6 +172,7 @@ void DrawText(char *text, float x, float y, int z, float scaleX, float scaleY, u
 typedef struct {
     char username[40];
     char message[366];
+    char timestamp[6];
     C2D_Image image;
     bool hasImage;
 } MessageHistory;
@@ -216,6 +196,7 @@ void append_message(char* username, char* message, C2D_Image *image) {
 
     snprintf(history[msgCount].username, 40, "%s", username);
     snprintf(history[msgCount].message, 365, "%s", message);
+    history[msgCount].timestamp[0] = '\0';
     if (image != NULL) {
         history[msgCount].image = *image;
         history[msgCount].hasImage = true;
@@ -300,18 +281,10 @@ u32 btncolor(int btn) {
 
 int motdFrameCounter = 0;
 
-
-
-
-
-
 char autologin_username[30];
 char autologin_password[30];
 bool autologin_ready = false;
 int autologin_enabled = 1;
-
-
-
 
 /*
 
@@ -381,20 +354,42 @@ void writeConfig() {
     fclose(f);
 }
 
+void encode(char *dst, const char *src, size_t size) {
+    int j = 0;
+    for (int i = 0; src[i] != '\0' && j < size - 1; i++) {
+        if (src[i] == '%' || src[i] == '|' || src[i] == '\n') {
+            if (j + 3 >= size) break;
+            dst[j++] = '%';
+            if (src[i] == '%') {
+                dst[j++] = '2';
+                dst[j++] = '5';
+            } else if (src[i] == '|') {
+                dst[j++] = '7';
+                dst[j++] = 'C';
+            } else {
+                dst[j++] = '0';
+                dst[j++] = 'A';
+            }
+        } else {
+            dst[j++] = src[i];
+        }
+    }
+    dst[j] = '\0';
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+void decode(char *dst, const char *src, size_t size) {
+    int j = 0;
+    for (int i = 0; src[i] != '\0' && j < size - 1; i++) {
+        if (src[i] == '%' && src[i + 1] && src[i + 2]) {
+            char hex[3] = {src[i + 1], src[i + 2], '\0'};
+            dst[j++] = (char)strtol(hex, NULL, 16);
+            i += 2;
+        } else {
+            dst[j++] = src[i];
+        }
+    }
+    dst[j] = '\0';
+}
 
 int main(int argc, char* argv[])
 {
@@ -502,10 +497,13 @@ int main(int argc, char* argv[])
     char *cmd = strtok(line, "|");
     char *param1 = strtok(NULL, "|");
     char *param2 = strtok(NULL, "|");
+    char *param3 = strtok(NULL, "|");
     
     if (cmd && param1) {
         
         if (!strcmp(cmd, "msg")) {
+            decode(param1, param1, strlen(param1) + 1);
+            decode(param2, param2, strlen(param2) + 1);
             if (strstr(param2, "/embeds/") != NULL) {
                 cGET(param2, "/3ds/aurorachat-v7/image.png");
                 bool isvalid = true;
@@ -520,9 +518,26 @@ int main(int argc, char* argv[])
             } else {
                 append_message(param1, param2, NULL);
             }
+            if (param3 != NULL) {
+                time_t timestamp = atoll(param3);
+                struct tm *timeinfo = localtime(&timestamp);
 
+                if (timeinfo != NULL) {
+                    strftime(history[msgCount - 1].timestamp,
+                             sizeof(history[msgCount - 1].timestamp),
+                             "%H:%M", timeinfo);
+                }
+            }
             char totalmessage[500];
-            snprintf(totalmessage, 500, "<%s>: %s", history[msgCount - 1].username, history[msgCount - 1].message);
+            if (param3 != NULL) {
+                time_t timestamp = atoll(param3);
+                struct tm *timeinfo = localtime(&timestamp);
+
+                if (timeinfo != NULL) {
+                    sprintf(history[msgCount - 1].timestamp, "%02d:%02d",
+                            timeinfo->tm_hour, timeinfo->tm_min);
+                }
+            }
 
             chatscroll -= 15;
             int timesToExt = 0;
@@ -537,7 +552,7 @@ int main(int argc, char* argv[])
 		}
 
         if (!strcmp(cmd, "motd")) {
-            sprintf(motd, "%s", param1);
+            decode(motd, param1, sizeof(motd));
 		}
 
         if (!strcmp(cmd, "ipbanned")) {
@@ -645,9 +660,11 @@ int main(int argc, char* argv[])
 
 			    swkbdInputText(&swkbd, message, sizeof(message));
 
-			    char toSend[400];
+			    char encoded[1100];
+                char toSend[1200];
+                encode(encoded, message, sizeof(encoded));
 
-			    sprintf(toSend, "msg|%s|\n", message);
+			    sprintf(toSend, "msg|%s|\n", encoded);
 			    send(sock, toSend, strlen(toSend), flags);
 		    }
         }
@@ -786,7 +803,13 @@ int main(int argc, char* argv[])
             float y = chatscroll;
             char totalmessage[500];
             for (int i = 0; i < msgCount; i++) {
-                snprintf(totalmessage, 500, "<%s>: %s", history[i].username, history[i].message);
+                if (history[i].timestamp[0] != '\0') {
+                    sprintf(totalmessage, "[%s] <%s>: %s",
+                            history[i].timestamp, history[i].username, history[i].message);
+                } else {
+                    sprintf(totalmessage, "<%s>: %s",
+                            history[i].username, history[i].message);
+                }
 
                 int timesToExt = strlen(totalmessage) / 39;
                 int lineH = 15 + timesToExt * 14;
