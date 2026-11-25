@@ -9,7 +9,7 @@
 #include <curl/curl.h>
 #include <time.h>
 
-#define SERVER_URL "144.217.26.87"
+#define SERVER_URL ""
 #define SOCKET_PORT "7070"
 
 
