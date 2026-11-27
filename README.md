@@ -7,6 +7,10 @@
   Welcome to the official repository for the Nintendo 3DS client for aurorachat!
 </div>
 
+<h1 align="center">This project has been shutdown.</h1>
+Aurorachat no longer receives updates and is additionally no longer hosted. This repository is an archive.
+
+
 <h1 align="center">How to build aurorachat</h1>
 
 Install devkitpro with the 3DS development libraries and make, then execute the following commands based on your OS:
